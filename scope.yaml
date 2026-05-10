@@ -1,0 +1,14 @@
+project:
+  name: qcvm
+  version: 1.0.0
+  description: 
+  author: luca
+  repo: 
+  qc_version: x0.15.1
+
+dependencies: []
+
+commands:
+  test: 
+  run: qc -c main.qc -o out && ./out
+  build: qc -c main.qc -o out
