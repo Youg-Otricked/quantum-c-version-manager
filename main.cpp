@@ -116,6 +116,8 @@ void setup(char** args, int argc) {
     }
     std::string home(home_raw);
     std::filesystem::create_directories(home + "/.qcvm/versions");
+    std::filesystem::create_directories(home + "/.qc/bin");
+    std::filesystem::create_directories(home + "/.qc/lib");
     if (!std::filesystem::exists(home + "/.qcvm/config.yaml")) {
         std::ofstream file(home + "/.qcvm/config.yaml");
         auto node = fkyaml::node::deserialize(R"(
@@ -125,8 +127,30 @@ current: null
         file << node;
         file.close();
     } else {
-        std::cout << "Config file already exists" << '\n';
-    } 
+        std::cout << "Config file already exists\n";
+    }
+    std::string shell;
+    const char* shell_raw = getenv("SHELL");
+    if (shell_raw) shell = shell_raw;
+    std::string rcFile;
+    if (shell.ends_with("zsh")) rcFile = home + "/.zshrc";
+    else if (shell.ends_with("fish")) rcFile = home + "/.config/fish/config.fish";
+    else rcFile = home + "/.bashrc";
+    std::string exportLine = "export PATH=\"$HOME/.qc/bin:$PATH\"";
+    if (shell.ends_with("fish")) {
+        exportLine = "fish_add_path $HOME/.qc/bin";
+    }
+    std::ifstream rcIn(rcFile);
+    std::string rcContent((std::istreambuf_iterator<char>(rcIn)), std::istreambuf_iterator<char>());
+    rcIn.close();
+    if (rcContent.find(".qc/bin") != std::string::npos) {
+        std::cout << "PATH already configured in " << rcFile << "\n";
+    } else {
+        std::ofstream rcOut(rcFile, std::ios::app);
+        rcOut << "\n# Added by qcvm\n" << exportLine << "\n";
+        std::cout << "Added .qc/bin to PATH in " << rcFile << "\n";
+        std::cout << "Run: source " << rcFile << "\n";
+    }
 }
 void help(char** args, int argc) {
     std::cout << R"(QCVM )" << QCVM_VERSION << R"(
