@@ -1,14 +1,13 @@
-project:
-  name: qcvm
-  version: 1.0.0
-  description: 
-  author: luca
-  repo: 
-  qc_version: x0.15.1
-
-dependencies: []
-
 commands:
-  test: 
-  run: qc -c main.qc -o out && ./out
   build: qc -c main.qc -o out
+  run: qc -c main.qc -o out && ./out
+  test: null
+dependencies:
+  - https://raw.githubusercontent.com/Youg-Otricked/QuantumC/refs/heads/master/stdlib.qc
+project:
+  author: luca
+  description: null
+  name: qcvm
+  qc_version: x0.15.1
+  repo: null
+  version: 1.0.0

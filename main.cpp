@@ -577,7 +577,7 @@ void getPackage(char** args, int argc) {
     std::ifstream in("scope.yaml");
     auto scnode = fkyaml::node::deserialize(in);
     in.close();
-    scnode["dependencies"][filename] = url;
+    scnode["dependencies"].as_seq().emplace_back(url);
     std::ofstream out("scope.yaml");
     out << fkyaml::node::serialize(scnode);
     std::cout << "Added " << filename << " to dependencies/\n";
