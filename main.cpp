@@ -467,7 +467,7 @@ void run(char** args, int argc) {
     }
     std::system(cmd.c_str());
 }
-void sync(char** args, int argc) {
+void syncScope(char** args, int argc) {
     if (!std::filesystem::exists("scope.yaml")) {
         throw std::string("No scope.yaml found in current directory.");
     }
@@ -558,7 +558,7 @@ void getPackage(char** args, int argc) {
     out << fkyaml::node::serialize(scnode);
     std::cout << "Added " << filename << " to dependencies/\n";
 }
-const std::vector<Command> commands = {{"help", help}, {"run", run}, Command{"sync", sync}, {"use", use}, {"install", install}, {"init", init}, {"uninstall", uninstall}, Command{"get", getPackage}, {"list", list}, {"list-remote", listRemote}, {"setup", setup}};
+const std::vector<Command> commands = {{"help", help}, {"run", run}, Command{"sync", syncScope}, {"use", use}, {"install", install}, {"init", init}, {"uninstall", uninstall}, Command{"get", getPackage}, {"list", list}, {"list-remote", listRemote}, {"setup", setup}};
 int main(int argc, char** argv) {
     if (argc < 2) {
         std::cout << "Please pass an argument. Try `qcvm help`";
