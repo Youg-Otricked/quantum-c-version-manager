@@ -167,6 +167,7 @@ list-remote: qcvm list-remote - lists all remote versions of qc.
 current: qcvm current - prints current qc version.
 setup: qcvm setup - creates the basic files and the .qcvm directory. Only needs to be ran on install.
 run: qcvm run <command> - runs that command defined in your scope.yaml.
+remove: qcvm remove <dependancy url> - removes that dependancy.
 )";
 }
 void init(char** args, int argc) {
@@ -449,11 +450,13 @@ void uninstall(char** args, int argc) {
     if (std::filesystem::exists(home + "/.qcvm/versions/stdlib-" + args[2] + ".qc")) {
         std::filesystem::remove(home + "/.qcvm/versions/stdlib-" + args[2] + ".qc");
     }
-    if (std::filesystem::exists(home + "/.qc/bin/qc")) {
-        std::filesystem::remove(home + "/.qc/bin/qc");
-    }
-    if (std::filesystem::exists(home + "/.qc/lib/stdlib.qc")) {
-        std::filesystem::remove(home + "/.qc/lib/stdlib.qc");
+    if (getCurrentQCVersion() == args[2]) {
+        if (std::filesystem::exists(home + "/.qc/bin/qc")) {
+            std::filesystem::remove(home + "/.qc/bin/qc");
+        }
+        if (std::filesystem::exists(home + "/.qc/lib/stdlib.qc")) {
+            std::filesystem::remove(home + "/.qc/lib/stdlib.qc");
+        }
     }
     auto node = getConfigFileNode();  
     auto& seq = node["installed"].as_seq();
@@ -461,7 +464,7 @@ void uninstall(char** args, int argc) {
     if (it != seq.end()) {
         seq.erase(it);
     }
-    node["current"] = (node["installed"].empty() ? nullptr : node["installed"][0]);
+    node["current"] = (node["installed"].empty() ? (getCurrentQCVersion().empty() ? "" : getCurrentQCVersion()) : node["installed"][0]);
     saveConfigFileNode(node);
     if (std::filesystem::exists("scope.yaml")) {
         std::ifstream in("scope.yaml");
