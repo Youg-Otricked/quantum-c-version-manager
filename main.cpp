@@ -240,7 +240,7 @@ void init(char** args, int argc) {
     std::getline(std::cin, choice);
     bool multiFile = false;
     if (choice == "Y" || choice == "y") {
-        std::filesystem::create_directory("dependancys");
+        std::filesystem::create_directory("dependencies");
         multiFile = true;
     }
     std::ofstream mainFile("main.qc");
