@@ -162,12 +162,10 @@ install: qcvm install <version> - installs version <version> and changed current
 init: qcvm init - intializes a simple project using a setup wizard.
 uninstall: qcvm uninstall <version> - uninstalls <version>.
 get: qcvm get <link> - installs the qc file <link> points to in the projects deps directory.
-list: qcvm list - lists installed versions of qc.
+list: qcvm list - lists installed versions of qc, wih a `*` next to the current version.
 list-remote: qcvm list-remote - lists all remote versions of qc.
-current: qcvm current - prints current qc version.
 setup: qcvm setup - creates the basic files and the .qcvm directory. Only needs to be ran on install.
 run: qcvm run <command> - runs that command defined in your scope.yaml.
-remove: qcvm remove <dependancy url> - removes that dependancy.
 )";
 }
 void init(char** args, int argc) {
@@ -234,7 +232,7 @@ void init(char** args, int argc) {
     }
     std::string entrypointLine = "";
     if (entry != "main") {
-        entrypointLine = "#entrypoint=\"" + entry + "\"\n";
+        entrypointLine = "#entrypoint=" + entry + "\n";
     }
     std::cout << "will this project be a one file or multi file project? (Y/n) ";
     std::getline(std::cin, choice);
