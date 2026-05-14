@@ -13,9 +13,9 @@
 #include "json.hpp"
 #include <sys/stat.h>
 #include <ranges>
-const std::string QCVM_VERSION = "0.2.0";
+const std::string QCVM_VERSION = "1.0.0";
 #include <string_view>
-constexpr std::string_view TAGGED_VERSIONS[] = { "x0.15.8" };
+constexpr std::string_view TAGGED_VERSIONS[] = { "x0.15.8", "x0.16.0" };
 
 /*
 root structure = 
@@ -118,6 +118,7 @@ void setup(char** args, int argc) {
     std::filesystem::create_directories(home + "/.qcvm/versions");
     std::filesystem::create_directories(home + "/.qc/bin");
     std::filesystem::create_directories(home + "/.qc/lib");
+    std::filesystem::create_directories(home + "/.qcvm/bin");
     if (!std::filesystem::exists(home + "/.qcvm/config.yaml")) {
         std::ofstream file(home + "/.qcvm/config.yaml");
         auto node = fkyaml::node::deserialize(R"(
@@ -140,6 +141,10 @@ current: null
     if (shell.ends_with("fish")) {
         exportLine = "fish_add_path $HOME/.qc/bin";
     }
+    std::string exportQCVMLine = "export PATH=\"$HOME/.qcvm/bin";
+    if (shell.ends_with("fish")) {
+        exportQCVMLine = "fish_add_path $HOME/.qcvm/bin";
+    }
     std::ifstream rcIn(rcFile);
     std::string rcContent((std::istreambuf_iterator<char>(rcIn)), std::istreambuf_iterator<char>());
     rcIn.close();
@@ -149,8 +154,15 @@ current: null
         std::ofstream rcOut(rcFile, std::ios::app);
         rcOut << "\n# Added by qcvm\n" << exportLine << "\n";
         std::cout << "Added .qc/bin to PATH in " << rcFile << "\n";
-        std::cout << "Run: source " << rcFile << "\n";
     }
+    if (rcContent.find(".qcvm/bin") != std::string::npos) {
+        std::cout << "QCVM PATH already configured in " << rcFile << "\n";
+    } else {
+        std::ofstream rcOut(rcFile, std::ios::app);
+        rcOut << "\n# Added by qcvm\n" << exportQCVMLine << "\n";
+        std::cout << "Added .qcvm/bin to PATH in " << rcFile << "\n";
+    }
+    std::cout << "Run: source " << rcFile << "\n";
 }
 void help(char** args, int argc) {
     std::cout << R"(QCVM )" << QCVM_VERSION << R"(
