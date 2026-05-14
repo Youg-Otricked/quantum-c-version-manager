@@ -13,7 +13,7 @@
 #include "json.hpp"
 #include <sys/stat.h>
 #include <ranges>
-const std::string QCVM_VERSION = "1.0.0";
+const std::string QCVM_VERSION = "1.2.0";
 #include <string_view>
 constexpr std::string_view TAGGED_VERSIONS[] = { "x0.15.8", "x0.16.0" };
 
@@ -141,7 +141,7 @@ current: null
     if (shell.ends_with("fish")) {
         exportLine = "fish_add_path $HOME/.qc/bin";
     }
-    std::string exportQCVMLine = "export PATH=\"$HOME/.qcvm/bin";
+    std::string exportQCVMLine = "export PATH=\"$HOME/.qcvm/bin:$PATH\"";
     if (shell.ends_with("fish")) {
         exportQCVMLine = "fish_add_path $HOME/.qcvm/bin";
     }
@@ -162,6 +162,9 @@ current: null
         rcOut << "\n# Added by qcvm\n" << exportQCVMLine << "\n";
         std::cout << "Added .qcvm/bin to PATH in " << rcFile << "\n";
     }
+    char result[PATH_MAX];
+    ssize_t count = readlink("/proc/self/exe", result, PATH_MAX);
+    std::filesystem::copy_file(std::string(result, count), home + "/.qcvm/bin/qcvm", std::filesystem::copy_options::overwrite_existing);
     std::cout << "Run: source " << rcFile << "\n";
 }
 void help(char** args, int argc) {
