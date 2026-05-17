@@ -1,0 +1,83 @@
+name: Build QCVM
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'version.txt'
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Get version
+        id: get_version
+        run: echo "version=$(cat version.txt)" >> $GITHUB_OUTPUT
+      
+      - name: Create tag
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git tag ${{ steps.get_version.outputs.version }}
+          git push origin ${{ steps.get_version.outputs.version }}
+  build-linux:
+    needs: [tag]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y g++ libssl-dev
+      - name: Build
+        run: |
+          g++ -std=c++23 main.cpp -o qcvm-linux -lssl -lcrypto -DCPPHTTPLIB_OPENSSL_SUPPORT
+
+      - name: Upload Linux Binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: qcvm-linux
+          path: qcvm-linux
+
+  build-macos:
+    needs: [tag]
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install dependencies
+        run: |
+          brew install openssl@3
+      - name: Build
+        run: |
+          clang++ -std=c++2b main.cpp -o qcvm-macos -I$(brew --prefix openssl@3)/include -L$(brew --prefix openssl@3)/lib -lssl -lcrypto -DCPPHTTPLIB_OPENSSL_SUPPORT
+
+      - name: Upload macOS Binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: qcvm-macos
+          path: qcvm-macos
+  release:
+    needs: [tag, build-linux, build-macos]
+    if: always() && needs.tag.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.tag.outputs.version }}
+          files: |
+            qcvm-linux/qcvm-linux
+            qcvm-macos/qcvm-macos
