@@ -57,8 +57,7 @@ jobs:
           brew install openssl@3
       - name: Build
         run: |
-          clang++ -std=c++2b main.cpp -o qcvm-macos -I$(brew --prefix openssl@3)/include -L$(brew --prefix openssl@3)/lib -lssl -lcrypto -DCPPHTTPLIB_OPENSSL_SUPPORT
-
+          clang++ -std=c++2b main.cpp -o qcvm-macos -I$(brew --prefix openssl@3)/include -L$(brew --prefix openssl@3)/lib -lssl -lcrypto -framework CoreFoundation -framework Security -DCPPHTTPLIB_OPENSSL_SUPPORT
       - name: Upload macOS Binary
         uses: actions/upload-artifact@v4
         with:

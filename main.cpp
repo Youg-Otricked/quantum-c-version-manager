@@ -13,7 +13,7 @@
 #include "json.hpp"
 #include <sys/stat.h>
 #include <ranges>
-const std::string QCVM_VERSION = "1.2.1";
+const std::string QCVM_VERSION = "1.2.2";
 #include <string_view>
 constexpr std::string_view TAGGED_VERSIONS[] = { "x0.15.8", "x0.16.0", "x0.16.1" };
 
@@ -181,6 +181,7 @@ list: qcvm list - lists installed versions of qc, wih a `*` next to the current 
 list-remote: qcvm list-remote - lists all remote versions of qc.
 setup: qcvm setup - creates the basic files and the .qcvm directory. Only needs to be ran on install.
 run: qcvm run <command> - runs that command defined in your scope.yaml.
+upgrade: qcvm upgrade - installs latest qcvm version.
 )";
 }
 void init(char** args, int argc) {
@@ -410,6 +411,60 @@ void install(char** args, int argc) {
     }
     std::cout << "QuantumC version " << args[2] << " successfuly installed\n";
 }
+// https://github.com/Youg-Otricked/quantum-c-version-manager/releases/download/<tag>/<filename>
+std::string getLatestQCVMTag() {
+    httplib::Client client("https://api.github.com");
+    client.set_default_headers({{"User-Agent", "qcvm/1.0"}});
+    client.set_follow_location(true);
+    auto res = client.Get("/repos/Youg-Otricked/quantum-c-version-manager/releases/latest");
+    if (!res || res->status != 200) {
+        throw "Failed to check for updates. Are you connected to Wi-Fi?\n";
+    }
+    auto json = nlohmann::json::parse(res->body);
+    return json["tag_name"].get<std::string>();
+}
+void upgrade(char** args, int argc) {
+    std::string latest_tag = getLatestQCVMTag();
+    if (latest_tag == QCVM_VERSION) {
+        throw "QCVM is already up to date (" + QCVM_VERSION + ")";
+    }
+    httplib::Client client("https://github.com");
+    client.set_default_headers({{"User-Agent", "qcvm/1.0"}});
+    client.set_follow_location(true);
+    const char* home_raw = getenv("HOME");
+    if (!home_raw) {
+        throw "HOME not set\n";
+    }
+    std::string home(home_raw);
+    std::string versionDir = home + "/.qcvm/bin/";
+    std::string binPath = versionDir + "qcvm";
+    std::ofstream binFile(binPath, std::ios::binary);
+    size_t total = 0;
+    size_t downloaded = 0;
+
+    auto res = client.Get(
+        std::string("/Youg-Otricked/quantum-c-version-manager/releases/download/latest/") + (getOS() == "linux" ? "qcvm-linux" : "qcvm-macos"),
+        [&](const httplib::Response& response) {
+            total = std::stoull(response.get_header_value("Content-Length", "0"));
+            return true;
+        },
+        [&](const char* data, size_t len) {
+            binFile.write(data, len);
+            downloaded += len;
+            int pct = total ? (downloaded * 100 / total) : 0;
+            int bars = pct / 5;
+            std::cout << "\rInstalling QCVM - [" << std::string(bars, '=') << std::string(20 - bars, ' ') << "] " << pct << "%" << std::flush;
+            return true;
+        }
+    );
+    std::cout << '\n';
+    binFile.close();
+    if (!res || res->status != 200) {
+        std::filesystem::remove(binPath);
+        throw "Failed to fetch qcvm. Are you connected to Wi-Fi?\n";
+    }
+    std::cout << "Succesfully installed QCVMs latest version!" << '\n';
+}
 void use(char** args, int argc) {
     if (argc < 3) {
         throw "Usage: `qcvm use <version>`";
@@ -598,7 +653,7 @@ void getPackage(char** args, int argc) {
     out << fkyaml::node::serialize(scnode);
     std::cout << "Added " << filename << " to dependencies/\n";
 }
-const std::vector<Command> commands = {{"help", help}, {"run", run}, Command{"sync", syncScope}, {"use", use}, {"install", install}, {"init", init}, {"uninstall", uninstall}, Command{"get", getPackage}, {"list", list}, {"list-remote", listRemote}, {"setup", setup}};
+const std::vector<Command> commands = {{"upgrade", upgrade}, {"help", help}, {"run", run}, Command{"sync", syncScope}, {"use", use}, {"install", install}, {"init", init}, {"uninstall", uninstall}, Command{"get", getPackage}, {"list", list}, {"list-remote", listRemote}, {"setup", setup}};
 int main(int argc, char** argv) {
     if (argc < 2) {
         std::cout << "Please pass an argument. Try `qcvm help`";
