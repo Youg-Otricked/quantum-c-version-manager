@@ -443,7 +443,7 @@ void upgrade(char** args, int argc) {
     size_t downloaded = 0;
 
     auto res = client.Get(
-        std::string("/Youg-Otricked/quantum-c-version-manager/releases/download/latest/") + (getOS() == "linux" ? "qcvm-linux" : "qcvm-macos"),
+        std::string("/Youg-Otricked/quantum-c-version-manager/releases/download/" + getLatestQCVMTag() + "/") + (getOS() == "linux" ? "qcvm-linux" : "qcvm-macos"),
         [&](const httplib::Response& response) {
             total = std::stoull(response.get_header_value("Content-Length", "0"));
             return true;
@@ -463,6 +463,11 @@ void upgrade(char** args, int argc) {
         std::filesystem::remove(binPath);
         throw "Failed to fetch qcvm. Are you connected to Wi-Fi?\n";
     }
+    std::filesystem::permissions(binPath, 
+        std::filesystem::perms::owner_all | 
+        std::filesystem::perms::group_exec | 
+        std::filesystem::perms::others_exec
+    );
     std::cout << "Succesfully installed QCVMs latest version!" << '\n';
 }
 void use(char** args, int argc) {
