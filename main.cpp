@@ -13,9 +13,9 @@
 #include "json.hpp"
 #include <sys/stat.h>
 #include <ranges>
-const std::string QCVM_VERSION = "1.3.0";
+const std::string QCVM_VERSION = "1.3.1";
 #include <string_view>
-constexpr std::string_view TAGGED_VERSIONS[] = { "x0.15.8", "x0.16.0", "x0.16.1" };
+constexpr std::string_view TAGGED_VERSIONS[] = { "x0.15.8", "x0.16.0", "x0.16.1", "x0.16.11" };
 
 /*
 root structure = 
