@@ -1,0 +1,14 @@
+project:
+  name: sys-kernel-test
+  version: 0.1.0
+  description: Testing LLVM 21 IR output on low-spec hardware.
+  author: Luca
+  repo: 
+  qc_version: x0.15.8
+
+dependencies: []
+
+commands:
+  test: echo "Starting IR Test..." && ./qcvm run build
+  run: qc -c main.qc -o sys-kernel-test && ./sys-kernel-test
+  build: qc -c main.qc -o sys-kernel-test
