@@ -38,13 +38,13 @@ jobs:
           sudo apt install -y g++ libssl-dev
       - name: Build
         run: |
-          g++ -std=c++23 main.cpp -o qcvm-linux -lssl -lcrypto -DCPPHTTPLIB_OPENSSL_SUPPORT
+          g++ -std=c++23 main.cpp -o qcm-linux -lssl -lcrypto -DCPPHTTPLIB_OPENSSL_SUPPORT
 
       - name: Upload Linux Binary
         uses: actions/upload-artifact@v4
         with:
-          name: qcvm-linux
-          path: qcvm-linux
+          name: qcm-linux
+          path: qcm-linux
 
   build-macos:
     needs: [tag]
@@ -57,12 +57,12 @@ jobs:
           brew install openssl@3
       - name: Build
         run: |
-          clang++ -std=c++2b main.cpp -o qcvm-macos -I$(brew --prefix openssl@3)/include -L$(brew --prefix openssl@3)/lib -lssl -lcrypto -framework CoreFoundation -framework Security -DCPPHTTPLIB_OPENSSL_SUPPORT
+          clang++ -std=c++2b main.cpp -o qcm-macos -I$(brew --prefix openssl@3)/include -L$(brew --prefix openssl@3)/lib -lssl -lcrypto -framework CoreFoundation -framework Security -DCPPHTTPLIB_OPENSSL_SUPPORT
       - name: Upload macOS Binary
         uses: actions/upload-artifact@v4
         with:
-          name: qcvm-macos
-          path: qcvm-macos
+          name: qcm-macos
+          path: qcm-macos
   release:
     needs: [tag, build-linux, build-macos]
     if: always() && needs.tag.result == 'success'
@@ -78,5 +78,5 @@ jobs:
         with:
           tag_name: ${{ needs.tag.outputs.version }}
           files: |
-            qcvm-linux/qcvm-linux
-            qcvm-macos/qcvm-macos
+            qcm-linux/qcm-linux
+            qcm-macos/qcm-macos

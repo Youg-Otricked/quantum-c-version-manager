@@ -13,13 +13,13 @@
 #include "json.hpp"
 #include <sys/stat.h>
 #include <ranges>
-const std::string QCVM_VERSION = "1.3.1";
+const std::string QCVM_VERSION = "1.3.2";
 #include <string_view>
-constexpr std::string_view TAGGED_VERSIONS[] = { "x0.15.8", "x0.16.0", "x0.16.1", "x0.16.11" };
+constexpr std::string_view TAGGED_VERSIONS[] = { "x0.15.8", "x0.16.0", "x0.16.11", "x0.16.4", "x0.16.6", "x0.17.0"};
 
 /*
 root structure = 
-**~/.qcvm/qcvm.yaml**
+**~/.qcm/qcm.yaml**
 installed:
     - V1.....
     .........
@@ -37,12 +37,12 @@ auto getConfigFileNode() {
         throw "HOME not set\n";
     }
     std::string home(home_raw);
-    if (!std::filesystem::exists(home + "/.qcvm/config.yaml")) {
-        throw "Config file doesn't exist. Please run `qcvm setup`\n";
+    if (!std::filesystem::exists(home + "/.qcm/config.yaml")) {
+        throw "Config file doesn't exist. Please run `qcm setup`\n";
     }
-    FILE* config = std::fopen((home + "/.qcvm/config.yaml").c_str(), "r");
+    FILE* config = std::fopen((home + "/.qcm/config.yaml").c_str(), "r");
     if (config == nullptr) {
-        throw "Config file doesn't exist. Please run `qcvm setup`\n";
+        throw "Config file doesn't exist. Please run `qcm setup`\n";
     } 
     auto node = fkyaml::node::deserialize(config);
     std::fclose(config);
@@ -54,7 +54,7 @@ void saveConfigFileNode(auto node) {
         throw "HOME not set\n";
     }
     std::string home(home_raw);
-    std::ofstream file(home + "/.qcvm/config.yaml");
+    std::ofstream file(home + "/.qcm/config.yaml");
     file << node;
     file.close();
 }
@@ -115,12 +115,12 @@ void setup(char** args, int argc) {
         throw "HOME not set\n";
     }
     std::string home(home_raw);
-    std::filesystem::create_directories(home + "/.qcvm/versions");
+    std::filesystem::create_directories(home + "/.qcm/versions");
     std::filesystem::create_directories(home + "/.qc/bin");
     std::filesystem::create_directories(home + "/.qc/lib");
-    std::filesystem::create_directories(home + "/.qcvm/bin");
-    if (!std::filesystem::exists(home + "/.qcvm/config.yaml")) {
-        std::ofstream file(home + "/.qcvm/config.yaml");
+    std::filesystem::create_directories(home + "/.qcm/bin");
+    if (!std::filesystem::exists(home + "/.qcm/config.yaml")) {
+        std::ofstream file(home + "/.qcm/config.yaml");
         auto node = fkyaml::node::deserialize(R"(
 installed: []
 current: null
@@ -141,9 +141,9 @@ current: null
     if (shell.ends_with("fish")) {
         exportLine = "fish_add_path $HOME/.qc/bin";
     }
-    std::string exportQCVMLine = "export PATH=\"$HOME/.qcvm/bin:$PATH\"";
+    std::string exportQCVMLine = "export PATH=\"$HOME/.qcm/bin:$PATH\"";
     if (shell.ends_with("fish")) {
-        exportQCVMLine = "fish_add_path $HOME/.qcvm/bin";
+        exportQCVMLine = "fish_add_path $HOME/.qcm/bin";
     }
     std::ifstream rcIn(rcFile);
     std::string rcContent((std::istreambuf_iterator<char>(rcIn)), std::istreambuf_iterator<char>());
@@ -152,36 +152,36 @@ current: null
         std::cout << "PATH already configured in " << rcFile << "\n";
     } else {
         std::ofstream rcOut(rcFile, std::ios::app);
-        rcOut << "\n# Added by qcvm\n" << exportLine << "\n";
+        rcOut << "\n# Added by qcm\n" << exportLine << "\n";
         std::cout << "Added .qc/bin to PATH in " << rcFile << "\n";
     }
-    if (rcContent.find(".qcvm/bin") != std::string::npos) {
+    if (rcContent.find(".qcm/bin") != std::string::npos) {
         std::cout << "QCVM PATH already configured in " << rcFile << "\n";
     } else {
         std::ofstream rcOut(rcFile, std::ios::app);
-        rcOut << "\n# Added by qcvm\n" << exportQCVMLine << "\n";
-        std::cout << "Added .qcvm/bin to PATH in " << rcFile << "\n";
+        rcOut << "\n# Added by qcm\n" << exportQCVMLine << "\n";
+        std::cout << "Added .qcm/bin to PATH in " << rcFile << "\n";
     }
     char result[PATH_MAX];
     ssize_t count = readlink("/proc/self/exe", result, PATH_MAX);
-    std::filesystem::copy_file(std::string(result, count), home + "/.qcvm/bin/qcvm", std::filesystem::copy_options::overwrite_existing);
+    std::filesystem::copy_file(std::string(result, count), home + "/.qcm/bin/qcm", std::filesystem::copy_options::overwrite_existing);
     std::cout << "Run: source " << rcFile << "\n";
 }
 void help(char** args, int argc) {
     std::cout << R"(QCVM )" << QCVM_VERSION << R"(
 Commands:
-help: qcvm help - lists all commands, usages, and syntax.
-sync: qcvm sync - installs all dependancys and switches qc version to projects used version.
-use: qcvm use <version> - changes currently used version to other currently installed version.
-install: qcvm install <version> - installs version <version> and changed currently used version to it.
-init: qcvm init - intializes a simple project using a setup wizard.
-uninstall: qcvm uninstall <version> - uninstalls <version>.
-get: qcvm get <link> - installs the qc file <link> points to in the projects deps directory.
-list: qcvm list - lists installed versions of qc, wih a `*` next to the current version.
-list-remote: qcvm list-remote - lists all remote versions of qc.
-setup: qcvm setup - creates the basic files and the .qcvm directory. Only needs to be ran on install.
-run: qcvm run <command> - runs that command defined in your scope.yaml.
-upgrade: qcvm upgrade - installs latest qcvm version.
+help: qcm help - lists all commands, usages, and syntax.
+sync: qcm sync - installs all dependancys and switches qc version to projects used version.
+use: qcm tooling use <version> - changes currently used version to other currently installed version.
+install: qcm tooling install <version> - installs version <version> and changed currently used version to it.
+init: qcm init - intializes a simple project using a setup wizard.
+uninstall: qcm tooling uninstall <version> - uninstalls <version>.
+get: qcm tooling get <link> - installs the qc file <link> points to in the projects deps directory.
+list: qcm tooling list - lists installed versions of qc, wih a `*` next to the current version.
+list-remote: qcm tooling list-remote - lists all remote versions of qc.
+setup: qcm setup - creates the basic files and the .qcm directory. Only needs to be ran on install.
+run: qcm run <command> - runs that command defined in your scope.yaml.
+upgrade: qcm upgrade - installs latest qcm version.
 )";
 }
 void init(char** args, int argc) {
@@ -270,7 +270,7 @@ void init(char** args, int argc) {
 }
 std::string getVersions() {
     httplib::Client client("https://api.github.com");
-    client.set_default_headers({{"User-Agent", "qcvm/1.0"}});
+    client.set_default_headers({{"User-Agent", "qcm/1.0"}});
     
     auto res = client.Get("/repos/Youg-Otricked/QuantumC/releases");
     if (!res || res->status != 200) {
@@ -301,14 +301,14 @@ bool isValidVersion(char* version) {
 // https://github.com/Youg-Otricked/QuantumC/releases/download/<tag>/<filename>
 void install(char** args, int argc) {
     if (argc < 3) {
-        throw "Usage: `qcvm install <version>`";
+        throw "Usage: `qcm install <version>`";
     }
     if (!isValidVersion(args[2])) {
         throw "Please pass a valid version.";
     }
     std::string currentQCVersion = getCurrentQCVersion();
     if (getConfigFileNode()["installed"].contains(args[2])) {
-        throw "Version " + std::string(args[2]) + "already installed. Did you mean to run `qcvm use " + args[2] + "`?";
+        throw "Version " + std::string(args[2]) + "already installed. Did you mean to run `qcm use " + args[2] + "`?";
     }
     auto node = getConfigFileNode();
     auto& installed = node["installed"];
@@ -325,17 +325,17 @@ void install(char** args, int argc) {
         saveConfigFileNode(node);
     }
     if (currentQCVersion == std::string(args[2])) {
-        throw "Version " + std::string(args[2]) + " is already installed. Did you mean to run `qcvm use " + args[2] + "`? (JK it wasnt stored becuase you installed it but not via QCVM)";
+        throw "Version " + std::string(args[2]) + " is already installed. Did you mean to run `qcm use " + args[2] + "`? (JK it wasnt stored becuase you installed it but not via QCVM)";
     }
     httplib::Client client("https://github.com");
-    client.set_default_headers({{"User-Agent", "qcvm/1.0"}});
+    client.set_default_headers({{"User-Agent", "qcm/1.0"}});
     client.set_follow_location(true);
     const char* home_raw = getenv("HOME");
     if (!home_raw) {
         throw "HOME not set\n";
     }
     std::string home(home_raw);
-    std::string versionDir = home + "/.qcvm/versions/";
+    std::string versionDir = home + "/.qcm/versions/";
     std::string binPath = versionDir + "qc-" + args[2];
     std::ofstream binFile(binPath, std::ios::binary);
     size_t total = 0;
@@ -414,7 +414,7 @@ void install(char** args, int argc) {
 // https://github.com/Youg-Otricked/quantum-c-version-manager/releases/download/<tag>/<filename>
 std::string getLatestQCVMTag() {
     httplib::Client client("https://api.github.com");
-    client.set_default_headers({{"User-Agent", "qcvm/1.0"}});
+    client.set_default_headers({{"User-Agent", "qcm/1.0"}});
     client.set_follow_location(true);
     auto res = client.Get("/repos/Youg-Otricked/quantum-c-version-manager/releases/latest");
     if (!res || res->status != 200) {
@@ -429,21 +429,21 @@ void upgrade(char** args, int argc) {
         throw "QCVM is already up to date (" + QCVM_VERSION + ")";
     }
     httplib::Client client("https://github.com");
-    client.set_default_headers({{"User-Agent", "qcvm/1.0"}});
+    client.set_default_headers({{"User-Agent", "qcm/1.0"}});
     client.set_follow_location(true);
     const char* home_raw = getenv("HOME");
     if (!home_raw) {
         throw "HOME not set\n";
     }
     std::string home(home_raw);
-    std::string versionDir = home + "/.qcvm/bin/";
-    std::string binPath = versionDir + "qcvm";
+    std::string versionDir = home + "/.qcm/bin/";
+    std::string binPath = versionDir + "qcm";
     std::ofstream binFile(binPath, std::ios::binary);
     size_t total = 0;
     size_t downloaded = 0;
 
     auto res = client.Get(
-        std::string("/Youg-Otricked/quantum-c-version-manager/releases/download/" + getLatestQCVMTag() + "/") + (getOS() == "linux" ? "qcvm-linux" : "qcvm-macos"),
+        std::string("/Youg-Otricked/quantum-c-version-manager/releases/download/" + getLatestQCVMTag() + "/") + (getOS() == "linux" ? "qcm-linux" : "qcm-macos"),
         [&](const httplib::Response& response) {
             total = std::stoull(response.get_header_value("Content-Length", "0"));
             return true;
@@ -453,7 +453,7 @@ void upgrade(char** args, int argc) {
             downloaded += len;
             int pct = total ? (downloaded * 100 / total) : 0;
             int bars = pct / 5;
-            std::cout << "\rInstalling QCVM - [" << std::string(bars, '=') << std::string(20 - bars, ' ') << "] " << pct << "%" << std::flush;
+            std::cout << "\rInstalling QCM - [" << std::string(bars, '=') << std::string(20 - bars, ' ') << "] " << pct << "%" << std::flush;
             return true;
         }
     );
@@ -461,27 +461,27 @@ void upgrade(char** args, int argc) {
     binFile.close();
     if (!res || res->status != 200) {
         std::filesystem::remove(binPath);
-        throw "Failed to fetch qcvm. Are you connected to Wi-Fi?\n";
+        throw "Failed to fetch qcm. Are you connected to Wi-Fi?\n";
     }
     std::filesystem::permissions(binPath, 
         std::filesystem::perms::owner_all | 
         std::filesystem::perms::group_exec | 
         std::filesystem::perms::others_exec
     );
-    std::cout << "Succesfully installed QCVMs latest version!" << '\n';
+    std::cout << "Succesfully installed QCMs latest version!" << '\n';
 }
 void use(char** args, int argc) {
     if (argc < 3) {
-        throw "Usage: `qcvm use <version>`";
+        throw "Usage: `qcm use <version>`";
     }
     const char* home_raw = getenv("HOME");
     if (!home_raw) throw "HOME not set\n";
     std::string home(home_raw);
-    std::string versionDir = home + "/.qcvm/versions/";
+    std::string versionDir = home + "/.qcm/versions/";
     std::string binPath = versionDir + "qc-" + args[2];
     std::string stdlibPath = versionDir + "stdlib-" + args[2] + ".qc";
     if (!std::filesystem::exists(binPath) || !std::filesystem::exists(stdlibPath)) {
-        throw "Version " + std::string(args[2]) + " not installed. Run `qcvm install " + args[2] + "`";
+        throw "Version " + std::string(args[2]) + " not installed. Run `qcm install " + args[2] + "`";
     }
     std::string qcBin = home + "/.qc/bin";
     std::string qcLib = home + "/.qc/lib";
@@ -509,7 +509,7 @@ void use(char** args, int argc) {
 }
 void uninstall(char** args, int argc) {
     if (argc < 3) {
-        throw "Usage: `qcvm uninstall <version>`";
+        throw "Usage: `qcm uninstall <version>`";
     }
     if (!isValidVersion(args[2])) {
         throw "Version " + std::string(args[2]) + " isn't installed.";
@@ -517,11 +517,11 @@ void uninstall(char** args, int argc) {
     const char* home_raw = getenv("HOME");
     if (!home_raw) throw "HOME not set\n";
     std::string home(home_raw);
-    if (std::filesystem::exists(home + "/.qcvm/versions/qc-" + args[2])) {
-        std::filesystem::remove(home + "/.qcvm/versions/qc-" + args[2]);
+    if (std::filesystem::exists(home + "/.qcm/versions/qc-" + args[2])) {
+        std::filesystem::remove(home + "/.qcm/versions/qc-" + args[2]);
     }
-    if (std::filesystem::exists(home + "/.qcvm/versions/stdlib-" + args[2] + ".qc")) {
-        std::filesystem::remove(home + "/.qcvm/versions/stdlib-" + args[2] + ".qc");
+    if (std::filesystem::exists(home + "/.qcm/versions/stdlib-" + args[2] + ".qc")) {
+        std::filesystem::remove(home + "/.qcm/versions/stdlib-" + args[2] + ".qc");
     }
     if (getCurrentQCVersion() == args[2]) {
         if (std::filesystem::exists(home + "/.qc/bin/qc")) {
@@ -550,7 +550,7 @@ void uninstall(char** args, int argc) {
 }
 void run(char** args, int argc) {
     if (argc < 3) {
-        throw "usage: `qcvm run <command>`";
+        throw "usage: `qcm run <command>`";
     }
     if (!std::filesystem::exists("scope.yaml")) {
         throw "no scope.yaml found in current directory\n";
@@ -590,88 +590,38 @@ void syncScope(char** args, int argc) {
     char* install_args[] = {args[0], (char*)"install", version.data()};
     install(install_args, 3);
 }
-void getPackage(char** args, int argc) {
-    if (argc < 3) {
-        throw std::string("Usage: `qcvm get <url>`");
-    }
-    if (!std::filesystem::exists("scope.yaml")) {
-        throw std::string("No scope.yaml found in current directory.");
-    }
-    std::string url(args[2]);
-    std::string filename = url.substr(url.find_last_of('/') + 1);
-    if (filename.empty()) {
-        throw std::string("Could not determine filename from URL.");
-    }
-    std::filesystem::create_directories("dependencies");
-    std::string outPath = "dependencies/" + filename;
-    std::string host, path;
-    bool https = url.starts_with("https://");
-    std::string stripped = url.substr(https ? 8 : 7);
-    size_t slash = stripped.find('/');
-    host = stripped.substr(0, slash);
-    path = slash == std::string::npos ? "/" : stripped.substr(slash);
-    std::ofstream outFile(outPath, std::ios::binary);
-    size_t total = 0, downloaded = 0;
-    auto doGet = [&](auto& client) {
-        auto res = client.Get(
-            path,
-            [&](const httplib::Response& response) {
-                total = std::stoull(response.get_header_value("Content-Length", "0"));
-                return true;
-            },
-            [&](const char* data, size_t len) {
-                outFile.write(data, len);
-                downloaded += len;
-                int pct = total ? (downloaded * 100 / total) : 0;
-                int bars = pct / 5;
-                std::cout << "\rDownloading " << filename << " - ["
-                          << std::string(bars, '=') << std::string(20 - bars, ' ')
-                          << "] " << pct << "%" << std::flush;
-                return true;
-            }
-        );
-        return res;
-    };
-    httplib::Result res;
-    if (https) {
-        httplib::SSLClient client(host);
-        client.set_follow_location(true);
-        client.set_default_headers({{"User-Agent", "qcvm/1.0"}});
-        res = doGet(client);
-    } else {
-        httplib::Client client(host);
-        client.set_follow_location(true);
-        client.set_default_headers({{"User-Agent", "qcvm/1.0"}});
-        res = doGet(client);
-    }
-    std::cout << '\n';
-    outFile.close();
-    if (!res || res->status != 200) {
-        std::filesystem::remove(outPath);
-        throw std::string("Failed to fetch ") + url;
-    }
-    std::ifstream in("scope.yaml");
-    auto scnode = fkyaml::node::deserialize(in);
-    in.close();
-    scnode["dependencies"].as_seq().emplace_back(url);
-    std::ofstream out("scope.yaml");
-    out << fkyaml::node::serialize(scnode);
-    std::cout << "Added " << filename << " to dependencies/\n";
+void add(char** args, int argc) {
 }
-const std::vector<Command> commands = {{"upgrade", upgrade}, {"help", help}, {"run", run}, Command{"sync", syncScope}, {"use", use}, {"install", install}, {"init", init}, {"uninstall", uninstall}, Command{"get", getPackage}, {"list", list}, {"list-remote", listRemote}, {"setup", setup}};
+
+void removePackage(char** args, int argc) {
+}
+const std::vector<Command> package_commands = {{"upgrade", upgrade}, {"run", run}, {"sync", syncScope}, {"init", init}, {"add", add}, {"remove", removePackage}, {"setup", setup}};
+const std::vector<Command> tooling_commands = {{"help", help}, {"use", use}, {"install", install}, {"uninstall", uninstall}, {"list", list}, {"list-remote", listRemote}};
 int main(int argc, char** argv) {
     if (argc < 2) {
-        std::cout << "Please pass an argument. Try `qcvm help`";
+        std::cout << "Please pass an argument. Try `qcm tooling help` or `qcm help`";
         return 1;
     } else {
         try {
-            for (Command command : commands) {
+            if (argv[1] == "tooling") {
+                char** args_only = argv + 1;
+                int args_count = argc - 1;
+                for (Command command : tooling_commands) {
+                    if (std::string(argv[2]) == command.name) {
+                        command.callback(args_only, args_count);
+                        return 0;
+                    }
+                }
+                std::cout << "Command doesn't exist. Please try `qcm tooling help`";
+                return 1;
+            }
+            for (Command command : package_commands) {
                 if (std::string(argv[1]) == command.name) {
                     command.callback(argv, argc);
                     return 0;
                 }
             }
-            std::cout << "Command doesn't exist. Please try `qcvm help`";
+            std::cout << "Command doesn't exist. Please try `qcm help`";
             return 1;
         } catch (std::string err) {
             std::cout << "Error: " << err << '\n';
