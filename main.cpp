@@ -15,7 +15,7 @@
 #include <ranges>
 const std::string QCVM_VERSION = "1.3.2";
 #include <string_view>
-constexpr std::string_view TAGGED_VERSIONS[] = { "x0.15.8", "x0.16.0", "x0.16.11", "x0.16.4", "x0.16.6", "x0.17.0"};
+constexpr std::string_view TAGGED_VERSIONS[] = { "x0.15.8", "x0.16.0", "x0.16.11", "x0.16.4", "x0.16.6", "x0.17.0", "x0.17.31"};
 
 /*
 root structure = 
@@ -603,7 +603,7 @@ int main(int argc, char** argv) {
         return 1;
     } else {
         try {
-            if (argv[1] == "tooling") {
+            if (std::string(argv[1]) == "tooling") {
                 char** args_only = argv + 1;
                 int args_count = argc - 1;
                 for (Command command : tooling_commands) {
