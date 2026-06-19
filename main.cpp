@@ -13,10 +13,16 @@
 #include "json.hpp"
 #include <sys/stat.h>
 #include <ranges>
-const std::string QCVM_VERSION = "1.3.2";
+const std::string QCVM_VERSION = "2.0.0";
 #include <string_view>
 constexpr std::string_view TAGGED_VERSIONS[] = { "x0.15.8", "x0.16.0", "x0.16.11", "x0.16.4", "x0.16.6", "x0.17.0", "x0.17.31"};
-
+struct RegistryEntry {
+    std::string version;
+    std::string repo;
+    std::string description;
+};
+std::unordered_map<std::string, RegistryEntry> REGISTRY = {
+};
 /*
 root structure = 
 **~/.qcm/qcm.yaml**
@@ -115,6 +121,8 @@ void setup(char** args, int argc) {
         throw "HOME not set\n";
     }
     std::string home(home_raw);
+    
+    std::filesystem::create_directories(home + "/.qcm/packages");
     std::filesystem::create_directories(home + "/.qcm/versions");
     std::filesystem::create_directories(home + "/.qc/bin");
     std::filesystem::create_directories(home + "/.qc/lib");
@@ -170,18 +178,11 @@ current: null
 void help(char** args, int argc) {
     std::cout << R"(QCVM )" << QCVM_VERSION << R"(
 Commands:
-help: qcm help - lists all commands, usages, and syntax.
-sync: qcm sync - installs all dependancys and switches qc version to projects used version.
 use: qcm tooling use <version> - changes currently used version to other currently installed version.
 install: qcm tooling install <version> - installs version <version> and changed currently used version to it.
-init: qcm init - intializes a simple project using a setup wizard.
 uninstall: qcm tooling uninstall <version> - uninstalls <version>.
-get: qcm tooling get <link> - installs the qc file <link> points to in the projects deps directory.
 list: qcm tooling list - lists installed versions of qc, wih a `*` next to the current version.
 list-remote: qcm tooling list-remote - lists all remote versions of qc.
-setup: qcm setup - creates the basic files and the .qcm directory. Only needs to be ran on install.
-run: qcm run <command> - runs that command defined in your scope.yaml.
-upgrade: qcm upgrade - installs latest qcm version.
 )";
 }
 void init(char** args, int argc) {
@@ -232,7 +233,7 @@ void init(char** args, int argc) {
         << "  author: " << author << "\n"
         << "  repo: " << gitRepo << "\n"
         << "  qc_version: " << getCurrentVersion() << "\n"
-        << "\ndependencies: []\n"
+        << "\ndependencies: {}\n"
         << "\ncommands:\n"
         << "  test: " << testCmd << "\n"
         << "  run: qc -c main.qc -o " << scopeName << " && ./" << scopeName << "\n"
@@ -567,6 +568,7 @@ void run(char** args, int argc) {
     }
     std::system(cmd.c_str());
 }
+void add(char** args, int argc);
 void syncScope(char** args, int argc) {
     if (!std::filesystem::exists("scope.yaml")) {
         throw std::string("No scope.yaml found in current directory.");
@@ -586,16 +588,163 @@ void syncScope(char** args, int argc) {
         char* use_args[] = {args[0], (char*)"use", version.data()};
         use(use_args, 3);
         return;
+    } else {
+        char* install_args[] = {args[0], (char*)"install", version.data()};
+        install(install_args, 3);
     }
-    char* install_args[] = {args[0], (char*)"install", version.data()};
-    install(install_args, 3);
+    for (auto [dependancy_name, dependancy_url] : scnode["dependencies"].as_map()) {
+        char* add_args[] = {args[0], (char*)"add", dependancy_name.get_value<std::string>().data(), (char*)"git", dependancy_url.get_value<std::string>().data()};
+        add(add_args, 5);
+    }
 }
 void add(char** args, int argc) {
-}
+    if (argc < 3) {
+        throw "Usage: qcm add <package-name> [git <rawusercontent url to a project that has a scope.yaml]";
+    }
+    std::string name = args[2];
+    std::string source;
+    std::string type;
+    if (argc >= 5) {
+        type = args[3];
+        source = args[4];
+    } else {
+        type = "registry";        
+        
+        if (!REGISTRY.contains(name)) {
+            throw "The registry does not contain package " + name + std::string("\n");
+        }
+        source = REGISTRY[name].repo;
+    }
 
-void removePackage(char** args, int argc) {
+    if (!std::filesystem::exists("scope.yaml")) {
+        throw "No scope.yaml found in current directory";
+    }
+    std::ifstream in("scope.yaml");
+    auto root = fkyaml::node::deserialize(in);
+    in.close();
+    if (!root.contains("dependencies")) {
+        root["dependencies"] = fkyaml::node::deserialize("{}");
+    }
+
+    auto& deps = root["dependencies"];
+    deps[name] = source;
+    std::string url = source;
+    size_t proto = url.find("://");
+    size_t host_start = (proto == std::string::npos) ? 0 : proto + 3;
+    size_t path_start = url.find('/', host_start);
+    if (path_start == std::string::npos) {
+        throw "Invalid URL";
+    }
+    std::string host = url.substr(0, path_start);
+    std::string path = url.substr(path_start);
+    httplib::Client client(host);
+    auto res = client.Get((path + "/scope.yaml").c_str());
+    if (!res) {
+        throw "Failed to get scope.yaml. Are you connected to Wi-Fi?";
+    }
+    if (res->status != 200) {
+        throw "HTTP error: " + std::to_string(res->status);
+    }
+    std::string scopeText = res->body;
+    auto node = fkyaml::node::deserialize(scopeText);
+    for (auto [dependancy_name, dependancy_url] : node["dependencies"].as_map()) {
+        char* add_args[] = {args[0], (char*)"add", dependancy_name.get_value<std::string>().data(), (char*)"git", dependancy_url.get_value<std::string>().data()};
+        add(add_args, 5);
+    }
+    const char* home_raw = getenv("HOME");
+    if (!home_raw) throw "HOME not set\n";
+    std::string home(home_raw);
+    if (!std::filesystem::exists(home + "/.qcm/packages/" + name)) {
+        std::filesystem::create_directories(home + "/.qcm/packages/" + name);
+        std::string cmd =
+            "git archive --remote=" + url +
+            " HEAD | tar -t";
+        FILE* pipe = popen(cmd.c_str(), "r");
+        
+        std::vector<std::string> files;
+        char buffer[512];
+        while (fgets(buffer, sizeof(buffer), pipe)) {
+            std::string line(buffer);
+            line.erase(std::remove(line.begin(), line.end(), '\n'), line.end());
+            files.push_back(line);
+        }
+        pclose(pipe);
+        for (std::string file_name : files) {
+            if (!file_name.ends_with(".qc")) continue;
+            size_t total = 0;
+            size_t downloaded = 0;
+            std::ofstream qcfile(home + "/.qcm/packages/" + name + "/" + file_name, std::ios::binary);
+            auto res = client.Get(
+                path + std::string("/") + file_name,
+                [&](const httplib::Response& response) {
+                    total = std::stoull(response.get_header_value("Content-Length", "0"));
+                    return true;
+                },
+                [&](const char* data, size_t len) {
+                    qcfile.write(data, len);
+                    downloaded += len;
+                    int pct = total ? (downloaded * 100 / total) : 0;
+                    int bars = pct / 5;
+                    std::cout << "\rInstalling file " << file_name << " - [" << std::string(bars, '=') << std::string(20 - bars, ' ') << "] " << pct << "%" << std::flush;
+                    return true;
+                }
+            ); 
+        }
+    } else {
+        std::cout << "Package already cached!" << '\n';
+    }
+    std::string src = home + "/.qcm/packages/" + name;
+    std::string dst = "dependencies/" + name;
+    if (std::filesystem::exists(dst) || std::filesystem::is_symlink(dst)) {
+        std::cout << "Dependency of same name already exists. Deleting." << '\n';
+        std::filesystem::remove_all(dst);
+    }
+    std::filesystem::create_directory_symlink(src, dst);
+    std::ofstream out("scope.yaml");
+    out << fkyaml::node::serialize(root);
+    std::cout << "Added dependency '" << name << "' -> " << source << '\n';
 }
-const std::vector<Command> package_commands = {{"upgrade", upgrade}, {"run", run}, {"sync", syncScope}, {"init", init}, {"add", add}, {"remove", removePackage}, {"setup", setup}};
+void removePackage(char** args, int argc) {
+    if (argc < 3) {
+        throw "Usage: qcm remove <package-name>";
+    }
+
+    std::string name = args[2];
+
+    if (!std::filesystem::exists("scope.yaml")) {
+        throw "No scope.yaml found in current directory";
+    }
+
+    std::ifstream in("scope.yaml");
+    auto root = fkyaml::node::deserialize(in);
+    in.close();
+
+    if (!root.contains("dependencies") || !root["dependencies"].contains(name)) {
+        throw "Dependency not found: " + name;
+    }
+    std::string link = "dependencies/" + name;
+    if (std::filesystem::exists(link) || std::filesystem::is_symlink(link)) {
+        std::filesystem::remove(link);
+    }
+    root["dependencies"].as_map().erase(name);
+    std::ofstream out("scope.yaml");
+    out << fkyaml::node::serialize(root);
+
+    std::cout << "Removed dependency '" << name << "'\n";
+}
+void packageHelp(char** args, int argc) {
+    std::cout << R"(
+run: qcm run <command> - runs that command from your scope.yaml
+help: qcm help - prints help text for package manager
+upgrade: qcm upgrade - installs latest version of qcm
+sync: qcm sync - installs neccesary packages and matches qc version
+init: qcm init - initializes a project
+add: qcm add <package-alias> [git <url to a git repo (of any hoster) containing a scope.yaml>]
+remove: qcm remove <package-alias> - uninstalls a package
+setup: qcm setup - sets up qcm
+    )" << '\n';
+}
+const std::vector<Command> package_commands = {{"help", packageHelp}, {"upgrade", upgrade}, {"run", run}, {"sync", syncScope}, {"init", init}, {"add", add}, {"remove", removePackage}, {"setup", setup}};
 const std::vector<Command> tooling_commands = {{"help", help}, {"use", use}, {"install", install}, {"uninstall", uninstall}, {"list", list}, {"list-remote", listRemote}};
 int main(int argc, char** argv) {
     if (argc < 2) {
