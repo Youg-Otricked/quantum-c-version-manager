@@ -13,7 +13,7 @@
 #include "json.hpp"
 #include <sys/stat.h>
 #include <ranges>
-const std::string QCVM_VERSION = "2.0.01";
+const std::string QCVM_VERSION = "2.0.1";
 #include <string_view>
 constexpr std::string_view TAGGED_VERSIONS[] = { "x0.15.8", "x0.16.0", "x0.16.11", "x0.16.4", "x0.16.6", "x0.17.0", "x0.17.31", "x0.17.75"};
 struct RegistryEntry {
@@ -255,9 +255,9 @@ void init(char** args, int argc) {
     std::getline(std::cin, choice);
     bool multiFile = false;
     if (choice == "Y" || choice == "y") {
-        std::filesystem::create_directory("dependencies");
         multiFile = true;
     }
+    std::filesystem::create_directory("dependencies");
     std::ofstream mainFile("main.qc");
     mainFile << inlineDirs << entrypointLine <<
     (multiFile ? "namespace Exported {\n    \n}\n" : "")
@@ -599,14 +599,16 @@ void syncScope(char** args, int argc) {
 }
 void add(char** args, int argc) {
     if (argc < 3) {
-        throw "Usage: qcm add <package-name> [git <rawusercontent url to a project that has a scope.yaml]";
+        throw "Usage: qcm add <package-name> [git <rawusercontent url to a project that has a scope.yaml> <git .tar.gz tarball url>]";
     }
     std::string name = args[2];
     std::string source;
     std::string type;
-    if (argc >= 5) {
+    std::string git_repo;
+    if (argc >= 6) {
         type = args[3];
         source = args[4];
+        git_repo = args[5];
     } else {
         type = "registry";        
         
@@ -645,6 +647,7 @@ void add(char** args, int argc) {
     if (res->status != 200) {
         throw "HTTP error: " + std::to_string(res->status);
     }
+    url = git_repo;
     std::string scopeText = res->body;
     auto node = fkyaml::node::deserialize(scopeText);
     for (auto [dependancy_name, dependancy_url] : node["dependencies"].as_map()) {
@@ -656,17 +659,20 @@ void add(char** args, int argc) {
     std::string home(home_raw);
     if (!std::filesystem::exists(home + "/.qcm/packages/" + name)) {
         std::filesystem::create_directories(home + "/.qcm/packages/" + name);
-        std::string cmd =
-            "git archive --remote=" + url +
-            " HEAD | tar -t";
+        std::string cmd = "curl -sL " + url + " | tar -tzf -";
         FILE* pipe = popen(cmd.c_str(), "r");
-        
         std::vector<std::string> files;
         char buffer[512];
         while (fgets(buffer, sizeof(buffer), pipe)) {
             std::string line(buffer);
             line.erase(std::remove(line.begin(), line.end(), '\n'), line.end());
-            files.push_back(line);
+            size_t first_slash = line.find('/');
+            if (first_slash != std::string::npos) {
+                std::string clean_name = line.substr(first_slash + 1);
+                if (!clean_name.empty()) {
+                    files.push_back(clean_name);
+                }
+            }
         }
         pclose(pipe);
         for (std::string file_name : files) {
