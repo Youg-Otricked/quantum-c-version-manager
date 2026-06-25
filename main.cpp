@@ -15,7 +15,7 @@
 #include <ranges>
 const std::string QCVM_VERSION = "2.0.0";
 #include <string_view>
-constexpr std::string_view TAGGED_VERSIONS[] = { "x0.15.8", "x0.16.0", "x0.16.11", "x0.16.4", "x0.16.6", "x0.17.0", "x0.17.31"};
+constexpr std::string_view TAGGED_VERSIONS[] = { "x0.15.8", "x0.16.0", "x0.16.11", "x0.16.4", "x0.16.6", "x0.17.0", "x0.17.31", "x0.17.75"};
 struct RegistryEntry {
     std::string version;
     std::string repo;
