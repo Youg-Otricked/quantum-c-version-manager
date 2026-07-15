@@ -15,7 +15,7 @@
 #include <ranges>
 const std::string QCVM_VERSION = "2.0.1";
 #include <string_view>
-constexpr std::string_view TAGGED_VERSIONS[] = { "x0.15.8", "x0.16.0", "x0.16.11", "x0.16.4", "x0.16.6", "x0.17.0", "x0.17.31", "x0.17.75"};
+constexpr std::string_view TAGGED_VERSIONS[] = { "x0.15.8", "x0.16.0", "x0.16.11", "x0.16.4", "x0.16.6", "x0.17.0", "x0.17.31", "x0.17.75", "x0.18.01"};
 struct RegistryEntry {
     std::string version;
     std::string repo;
@@ -257,14 +257,26 @@ void init(char** args, int argc) {
     if (choice == "Y" || choice == "y") {
         multiFile = true;
     }
-    std::filesystem::create_directory("dependencies");
+    std::cout << "will this project have a api/lib for others to use? (Y/n) ";
+    std::getline(std::cin, choice);
+    bool api = false;
+    if (choice == "Y" || choice == "y") {
+        api = true;
+    }
+    if (api) {
+        std::filesystem::create_directory("lib");
+        std::ofstream("lib/lib.qc", std::ios::app).close();
+    }
+    for (const auto& dir : {"dependencies", "tests", "docs"}) {
+        std::filesystem::create_directory(dir);
+    }
+    std::ofstream("docs/index.md", std::ios::app).close();
     std::ofstream mainFile("main.qc");
     mainFile << inlineDirs << entrypointLine <<
     (multiFile ? "namespace Exported {\n    \n}\n" : "")
     << "int " << entry << "() {\n" << "    return 0;" 
     << '\n' << '}' << '\n';
     mainFile.close();
-    std::cout << "project setup complete!\n";
     std::cout.flush();
     std::cout << "\033[?1049l";
     std::cout << "project setup complete!" << '\n';
@@ -301,8 +313,8 @@ bool isValidVersion(char* version) {
 }
 // https://github.com/Youg-Otricked/QuantumC/releases/download/<tag>/<filename>
 void install(char** args, int argc) {
-    if (argc < 3) {
-        throw "Usage: `qcm install <version>`";
+    if (argc < 4) {
+        throw "Usage: `qcm tooling install <version>`";
     }
     if (!isValidVersion(args[2])) {
         throw "Please pass a valid version.";
@@ -473,7 +485,7 @@ void upgrade(char** args, int argc) {
 }
 void use(char** args, int argc) {
     if (argc < 3) {
-        throw "Usage: `qcm use <version>`";
+        throw "Usage: `qcm tooling use <version>`";
     }
     const char* home_raw = getenv("HOME");
     if (!home_raw) throw "HOME not set\n";
@@ -510,7 +522,7 @@ void use(char** args, int argc) {
 }
 void uninstall(char** args, int argc) {
     if (argc < 3) {
-        throw "Usage: `qcm uninstall <version>`";
+        throw "Usage: `qcm tooling uninstall <version>`";
     }
     if (!isValidVersion(args[2])) {
         throw "Version " + std::string(args[2]) + " isn't installed.";
@@ -675,11 +687,16 @@ void add(char** args, int argc) {
             }
         }
         pclose(pipe);
-        for (std::string file_name : files) {
-            if (!file_name.ends_with(".qc")) continue;
+        for (const std::string& file_name : files) {
+            if (!file_name.ends_with(".qc") && !file_name.ends_with(".md")) continue;
+            std::filesystem::path full_dest_path = home + "/.qcm/packages/" + name + "/" + file_name;
+            if (full_dest_path.has_parent_path()) {
+                std::filesystem::create_directories(full_dest_path.parent_path());
+            }
             size_t total = 0;
             size_t downloaded = 0;
-            std::ofstream qcfile(home + "/.qcm/packages/" + name + "/" + file_name, std::ios::binary);
+            std::ofstream qcfile(full_dest_path, std::ios::binary);
+            if (!qcfile.is_open()) continue;
             auto res = client.Get(
                 path + std::string("/") + file_name,
                 [&](const httplib::Response& response) {
@@ -696,6 +713,7 @@ void add(char** args, int argc) {
                 }
             ); 
         }
+        std::cout << "\nPackage installation complete!\n";
     } else {
         std::cout << "Package already cached!" << '\n';
     }
