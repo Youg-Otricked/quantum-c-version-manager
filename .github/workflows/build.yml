@@ -76,9 +76,9 @@ jobs:
           sudo apt install -y dpkg-dev lintian
       - name: Build Debian package
         run: |
-          g++ -std=c++23 main.cpp -o qc-package/usr/bin/qcm -lssl -lcrypto -DCPPHTTPLIB_OPENSSL_SUPPORT
-          dpkg-deb --build --root-owner-group qc-package
-          mv qc-package.deb qcm_${{ needs.tag.outputs.version }}_amd64.deb    
+          g++ -std=c++23 main.cpp -o qcmng/usr/bin/qcm -lssl -lcrypto -DCPPHTTPLIB_OPENSSL_SUPPORT
+          dpkg-deb --build --root-owner-group qcmng
+          mv qcmng.deb qcm_${{ needs.tag.outputs.version }}_amd64.deb    
       - name: Check package
         run: |
           lintian qcm_${{ needs.tag.outputs.version }}_amd64.deb
