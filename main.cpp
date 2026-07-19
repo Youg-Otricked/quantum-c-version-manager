@@ -13,9 +13,9 @@
 #include "json.hpp"
 #include <sys/stat.h>
 #include <ranges>
-const std::string QCVM_VERSION = "2.1.0";
+const std::string QCVM_VERSION = "2.1.1";
 #include <string_view>
-constexpr std::string_view TAGGED_VERSIONS[] = { "x0.15.8", "x0.16.0", "x0.16.11", "x0.16.4", "x0.16.6", "x0.17.0", "x0.17.31", "x0.17.75", "x0.18.1", "x0.18.2"};
+constexpr std::string_view TAGGED_VERSIONS[] = { "x0.15.8", "x0.16.0", "x0.16.11", "x0.16.4", "x0.16.6", "x0.17.0", "x0.17.31", "x0.17.75", "x0.18.1", "x0.18.2", "x0.19.0"};
 struct RegistryEntry {
     std::string version;
     std::string repo;
