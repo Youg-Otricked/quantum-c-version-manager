@@ -5,7 +5,9 @@ on:
     branches: [main]
     paths:
       - 'version.txt'
-
+      - 'main.cpp'
+      - 'DEBIAN/**'
+      - 'packaging/**'
 jobs:
   tag:
     runs-on: ubuntu-latest
@@ -63,16 +65,37 @@ jobs:
         with:
           name: qcm-macos
           path: qcm-macos
+  build-debian:
+    needs: [tag]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install packaging tools
+        run: |
+          sudo apt update
+          sudo apt install -y dpkg-dev lintian
+      - name: Build Debian package
+        run: |
+          g++ -std=c++23 main.cpp -o qc-package/usr/bin/qcm -lssl -lcrypto -DCPPHTTPLIB_OPENSSL_SUPPORT
+          dpkg-deb --build --root-owner-group qc-package
+          mv qc-package.deb qcm_${{ needs.tag.outputs.version }}_amd64.deb    
+      - name: Check package
+        run: |
+          lintian qcm_${{ needs.tag.outputs.version }}_amd64.deb
+      - name: Upload Debian package
+        uses: actions/upload-artifact@v4
+        with:
+          name: qcm-debian
+          path: qcm_*.deb
   release:
-    needs: [tag, build-linux, build-macos]
-    if: always() && needs.tag.result == 'success'
+    needs: [tag, build-linux, build-macos, build-debian]
+    if: needs.tag.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@v4
-      
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
@@ -80,3 +103,5 @@ jobs:
           files: |
             qcm-linux/qcm-linux
             qcm-macos/qcm-macos
+            qcm-debian/qcm_${{ needs.tag.outputs.version }}_amd64.deb
+            install.sh

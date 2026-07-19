@@ -1,0 +1,10 @@
+Package: qcm
+Version: 0.1.0
+Section: devel
+Priority: optional
+Architecture: amd64
+Maintainer: Luca Fazio <yougotricked2@gmail.com>
+Homepage: https://github.com/Youg-Otricked/quantum-c-version-manager
+Depends: libc6, libssl3, libstdc++6
+Description: QuantumC version manager
+ The version manager for the C-Style systems programming language, C⁴

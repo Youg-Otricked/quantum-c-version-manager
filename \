@@ -9,15 +9,17 @@
 #include <algorithm>
 #include <regex>
 #include "yaml.hpp"
-#include "libcurl.hpp"
+#define CPPHTTPLIB_OPENSSL_SUPPORT
+#include "libcurl.h"
 #include "json.hpp"
 #include <sys/stat.h>
 #include <ranges>
 const std::string QCVM_VERSION = "2.1.1";
 #include <unordered_set>
+constexpr const char* TAGGED_VERSIONS_URL = "https://raw.githubusercontent.com/Youg-Otricked/quantum-c-version-manager/main/tagged_versions.txt";
 std::unordered_set<std::string> load_tagged_versions() {
     std::unordered_set<std::string> versions;
-    httplib::Client client("https://raw.githubusercontent.com");
+    httplib::SSLClient client("raw.githubusercontent.com");
     auto res = client.Get(
         "/Youg-Otricked/quantum-c-version-manager/main/tagged_versions.txt"
     );
@@ -39,46 +41,8 @@ struct RegistryEntry {
     std::string repo;
     std::string description;
 };
-
-std::unordered_map<std::string, RegistryEntry> parse_registry(const std::string& text) {
-    std::unordered_map<std::string, RegistryEntry> registry;
-    std::stringstream file(text);
-    std::string line;
-    while (std::getline(file, line)) {
-        if (line.empty() || line.starts_with("#")) {
-            continue;
-        }
-        std::stringstream ss(line);
-        std::string name;
-        std::string version;
-        std::string repo;
-        std::string description;
-        std::getline(ss, name, '|');
-        std::getline(ss, version, '|');
-        std::getline(ss, repo, '|');
-        std::getline(ss, description);
-        registry[name] = {
-            version,
-            repo,
-            description
-        };
-    }
-    return registry;
-}
-std::unordered_map<std::string, RegistryEntry> load_registry() {
-    httplib::Client client("https://raw.githubusercontent.com");
-    client.set_default_headers({
-        {"User-Agent", "qcm/1.0"}
-    });
-    auto res = client.Get(
-        "/Youg-Otricked/quantum-c-version-manager/main/registry.txt"
-    );
-    if (!res || res->status != 200) {
-        throw "Failed to download package registry\n";
-    }
-    return parse_registry(res->body);
-}
-std::unordered_map<std::string, RegistryEntry> REGISTRY = load_registry();
+std::unordered_map<std::string, RegistryEntry> REGISTRY = {
+};
 /*
 root structure = 
 **~/.qcm/qcm.yaml**
@@ -662,9 +626,7 @@ void syncScope(char** args, int argc) {
         install(install_args, 3);
     }
     for (auto [dependancy_name, dependancy_url] : scnode["dependencies"].as_map()) {
-        std::string name = dependancy_name.get_value<std::string>();
-        std::string gz = dependancy_url.get_value<std::string>(); 
-        char* add_args[] = {args[0], (char*)"add", name.data(), (char*)"git", gz.data()};
+        char* add_args[] = {args[0], (char*)"add", dependancy_name.get_value<std::string>().data(), (char*)"git", dependancy_url.get_value<std::string>().data()};
         add(add_args, 5);
     }
 }
