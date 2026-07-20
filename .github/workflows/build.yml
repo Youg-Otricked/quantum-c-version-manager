@@ -100,7 +100,10 @@ jobs:
         uses: actions/download-artifact@v4
       - name: Generate checksums
         run: |
-          sha256sum qcm-linux-amd64 qcm-macos-arm64 > checksums.txt
+          sha256sum \
+            qcm-linux-amd64/qcm-linux-amd64 \
+            qcm-macos-arm64/qcm-macos-arm64 \
+            > checksums.txt
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
