@@ -16,7 +16,7 @@
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
 #endif
-const std::string QCVM_VERSION = "2.1.3";
+const std::string QCVM_VERSION = "2.1.31";
 #include <unordered_set>
 std::unordered_set<std::string> load_tagged_versions() {
     std::unordered_set<std::string> versions;
@@ -265,6 +265,7 @@ current: null
         out << qcmPath << "\n";
         std::cout << "Added ~/.qcm/bin to PATH\n";
     }
+    std::filesystem::rename(getExecutablePath(), home + "/.qcm/bin/qcm");
     std::cout << "Run: source " << rcFile << "\n";
 }
 void help(char** args, int argc) {
