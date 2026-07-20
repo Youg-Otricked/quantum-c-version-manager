@@ -33,6 +33,33 @@ std::unordered_set<std::string> load_tagged_versions() {
     }
     return versions;
 }
+std::string getExecutablePath() {
+#ifdef __linux__
+    char result[PATH_MAX];
+    ssize_t count = readlink("/proc/self/exe", result, PATH_MAX);
+
+    if (count == -1) {
+        throw "Failed to get executable path\n";
+    }
+
+    return std::string(result, count);
+
+#elif defined(__APPLE__)
+    uint32_t size = 0;
+    _NSGetExecutablePath(nullptr, &size);
+
+    std::vector<char> buffer(size);
+
+    if (_NSGetExecutablePath(buffer.data(), &size) != 0) {
+        throw "Failed to get executable path\n";
+    }
+
+    return std::string(buffer.data());
+
+#else
+    throw "Unsupported platform\n";
+#endif
+}
 auto TAGGED_VERSIONS = load_tagged_versions();
 struct RegistryEntry {
     std::string version;
@@ -173,17 +200,22 @@ void list(char** args, int argc) {
     }
 }
 void setup(char** args, int argc) {
+    bool exportPath = true;
+    for (int i = 2; i < argc; i++) {
+        if (std::string(args[i]) == "--no-export") {
+            exportPath = false;
+        }
+    }
     const char* home_raw = getenv("HOME");
     if (!home_raw) {
         throw "HOME not set\n";
     }
     std::string home(home_raw);
-    
     std::filesystem::create_directories(home + "/.qcm/packages");
     std::filesystem::create_directories(home + "/.qcm/versions");
+    std::filesystem::create_directories(home + "/.qcm/bin");
     std::filesystem::create_directories(home + "/.qc/bin");
     std::filesystem::create_directories(home + "/.qc/lib");
-    std::filesystem::create_directories(home + "/.qcm/bin");
     if (!std::filesystem::exists(home + "/.qcm/config.yaml")) {
         std::ofstream file(home + "/.qcm/config.yaml");
         auto node = fkyaml::node::deserialize(R"(
@@ -191,45 +223,45 @@ installed: []
 current: null
 )");
         file << node;
-        file.close();
-    } else {
-        std::cout << "Config file already exists\n";
     }
-    std::string shell;
-    const char* shell_raw = getenv("SHELL");
-    if (shell_raw) shell = shell_raw;
+    if (!exportPath) {
+        std::cout << "Skipping PATH export\n";
+        return;
+    }
+    std::string shell = getenv("SHELL") ? getenv("SHELL") : "";
     std::string rcFile;
-    if (shell.ends_with("zsh")) rcFile = home + "/.zshrc";
-    else if (shell.ends_with("fish")) rcFile = home + "/.config/fish/config.fish";
-    else rcFile = home + "/.bashrc";
-    std::string exportLine = "export PATH=\"$HOME/.qc/bin:$PATH\"";
-    if (shell.ends_with("fish")) {
-        exportLine = "fish_add_path $HOME/.qc/bin";
-    }
-    std::string exportQCVMLine = "export PATH=\"$HOME/.qcm/bin:$PATH\"";
-    if (shell.ends_with("fish")) {
-        exportQCVMLine = "fish_add_path $HOME/.qcm/bin";
-    }
-    std::ifstream rcIn(rcFile);
-    std::string rcContent((std::istreambuf_iterator<char>(rcIn)), std::istreambuf_iterator<char>());
-    rcIn.close();
-    if (rcContent.find(".qc/bin") != std::string::npos) {
-        std::cout << "PATH already configured in " << rcFile << "\n";
+    if (shell.ends_with("zsh")) {
+        rcFile = home + "/.zshrc";
+    } else if (shell.ends_with("fish")) {
+        rcFile = home + "/.config/fish/config.fish";
     } else {
-        std::ofstream rcOut(rcFile, std::ios::app);
-        rcOut << "\n# Added by qcm\n" << exportLine << "\n";
-        std::cout << "Added .qc/bin to PATH in " << rcFile << "\n";
+        rcFile = home + "/.bashrc";
     }
-    if (rcContent.find(".qcm/bin") != std::string::npos) {
-        std::cout << "QCVM PATH already configured in " << rcFile << "\n";
+    std::string qcPath;
+    std::string qcmPath;
+    if (shell.ends_with("fish")) {
+        qcPath = "fish_add_path $HOME/.qc/bin";
+        qcmPath = "fish_add_path $HOME/.qcm/bin";
     } else {
-        std::ofstream rcOut(rcFile, std::ios::app);
-        rcOut << "\n# Added by qcm\n" << exportQCVMLine << "\n";
-        std::cout << "Added .qcm/bin to PATH in " << rcFile << "\n";
+        qcPath = "export PATH=\"$HOME/.qc/bin:$PATH\"";
+        qcmPath = "export PATH=\"$HOME/.qcm/bin:$PATH\"";
     }
-    char result[PATH_MAX];
-    ssize_t count = readlink("/proc/self/exe", result, PATH_MAX);
-    std::filesystem::copy_file(std::string(result, count), home + "/.qcm/bin/qcm", std::filesystem::copy_options::overwrite_existing);
+    std::ifstream in(rcFile);
+    std::string content(
+        (std::istreambuf_iterator<char>(in)),
+        std::istreambuf_iterator<char>()
+    );
+    std::ofstream out(rcFile, std::ios::app);
+    if (content.find(".qc/bin") == std::string::npos) {
+        out << "\n# Added by qcm\n";
+        out << qcPath << "\n";
+        std::cout << "Added ~/.qc/bin to PATH\n";
+    }
+    if (content.find(".qcm/bin") == std::string::npos) {
+        out << "\n# Added by qcm\n";
+        out << qcmPath << "\n";
+        std::cout << "Added ~/.qcm/bin to PATH\n";
+    }
     std::cout << "Run: source " << rcFile << "\n";
 }
 void help(char** args, int argc) {
@@ -368,17 +400,35 @@ bool isValidVersion(char* version) {
     }
     return false;
 }
+std::string getLatestQCTag() {
+    httplib::Client client("https://api.github.com");
+    client.set_default_headers({{"User-Agent", "qcm/1.0"}});
+    client.set_follow_location(true);
+    auto res = client.Get("/repos/Youg-Otricked/QuantumC/releases/latest");
+    if (!res || res->status != 200) {
+        throw "Failed to check for latest QuantumC version. Are you connected to Wi-Fi?\n";
+    }
+    auto json = nlohmann::json::parse(res->body);
+    return json["tag_name"].get<std::string>();
+}
+std::string resolveVersion(std::string version) {
+    if (version == "latest") {
+        return getLatestQCTag();
+    }
+    return version;
+}
 // https://github.com/Youg-Otricked/QuantumC/releases/download/<tag>/<filename>
 void install(char** args, int argc) {
     if (argc < 4) {
         throw "Usage: `qcm tooling install <version>`";
     }
+    std::string resolvedVersion = resolveVersion(args[2]);
     if (!isValidVersion(args[2])) {
         throw "Please pass a valid version.";
     }
     std::string currentQCVersion = getCurrentQCVersion();
-    if (getConfigFileNode()["installed"].contains(args[2])) {
-        throw "Version " + std::string(args[2]) + "already installed. Did you mean to run `qcm use " + args[2] + "`?";
+    if (getConfigFileNode()["installed"].contains(resolvedVersion)) {
+        throw "Version " + resolvedVersion + "already installed. Did you mean to run `qcm use " + args[2] + "`?";
     }
     auto node = getConfigFileNode();
     auto& installed = node["installed"];
@@ -394,8 +444,8 @@ void install(char** args, int argc) {
         node["current"] = currentQCVersion;
         saveConfigFileNode(node);
     }
-    if (currentQCVersion == std::string(args[2])) {
-        throw "Version " + std::string(args[2]) + " is already installed. Did you mean to run `qcm use " + args[2] + "`? (JK it wasnt stored becuase you installed it but not via QCVM)";
+    if (currentQCVersion == resolvedVersion) {
+        throw "Version " + resolvedVersion + " is already installed. Did you mean to run `qcm use " + args[2] + "`? (JK it wasnt stored becuase you installed it but not via QCVM)";
     }
     httplib::Client client("https://github.com");
     client.set_default_headers({{"User-Agent", "qcm/1.0"}});
@@ -412,7 +462,7 @@ void install(char** args, int argc) {
     size_t downloaded = 0;
 
     auto res = client.Get(
-        "/Youg-Otricked/QuantumC/releases/download/" + std::string(args[2]) + "/" + (getOS() == "linux" ? "qc-linux" : "qc-macos"),
+        "/Youg-Otricked/QuantumC/releases/download/" + std::string(args[2]) + "/" + (getOS() == "linux" ? "qc-linux-amd64" : "qc-macos-arm64"),
         [&](const httplib::Response& response) {
             total = std::stoull(response.get_header_value("Content-Length", "0"));
             return true;
@@ -493,65 +543,125 @@ std::string getLatestQCVMTag() {
     auto json = nlohmann::json::parse(res->body);
     return json["tag_name"].get<std::string>();
 }
+bool installSelfFallback(const std::string& tempPath) {
+    const char* home_raw = getenv("HOME");
+    if (!home_raw) {
+        return false;
+    }
+    std::string home(home_raw);
+    std::string qcmDir = home + "/.qcm/bin";
+    std::string fallback = qcmDir + "/qcm";
+    std::filesystem::create_directories(qcmDir);
+    try {
+        std::filesystem::rename(tempPath, fallback);
+        std::filesystem::permissions(
+            fallback,
+            std::filesystem::perms::owner_all |
+            std::filesystem::perms::group_exec |
+            std::filesystem::perms::others_exec
+        );
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+void ensureQcmPath() {
+    const char* home_raw = getenv("HOME");
+    if (!home_raw) return;
+    std::string home(home_raw);
+    std::string path = getenv("PATH") ? getenv("PATH") : "";
+    if (path.find(home + "/.qcm/bin") != std::string::npos) {
+        return;
+    }
+    std::string shell = getenv("SHELL") ? getenv("SHELL") : "";
+    std::string rcFile;
+    if (shell.ends_with("zsh"))
+        rcFile = home + "/.zshrc";
+    else if (shell.ends_with("fish"))
+        rcFile = home + "/.config/fish/config.fish";
+    else
+        rcFile = home + "/.bashrc";
+    std::ofstream out(rcFile, std::ios::app);
+    if (shell.ends_with("fish")) {
+        out << "\n# Added by qcm\n";
+        out << "fish_add_path $HOME/.qcm/bin\n";
+    } else {
+        out << "\n# Added by qcm\n";
+        out << "export PATH=\"$HOME/.qcm/bin:$PATH\"\n";
+    }
+    std::cout << "Added ~/.qcm/bin to PATH in " << rcFile << "\n";
+}
 void upgrade(char** args, int argc) {
     std::string latest_tag = getLatestQCVMTag();
     if (latest_tag == QCVM_VERSION) {
-        throw "QCVM is already up to date (" + QCVM_VERSION + ")";
+        throw "QCM is already up to date (" + QCVM_VERSION + ")";
     }
+    std::string binPath = getExecutablePath();
+    std::string tempPath = binPath + ".new";
     httplib::Client client("https://github.com");
-    client.set_default_headers({{"User-Agent", "qcm/1.0"}});
+    client.set_default_headers({
+        {"User-Agent", "qcm/" + std::string(QCVM_VERSION)}
+    });
     client.set_follow_location(true);
-    const char* home_raw = getenv("HOME");
-    if (!home_raw) {
-        throw "HOME not set\n";
-    }
-    std::string home(home_raw);
-    std::string versionDir = home + "/.qcm/bin/";
-    std::string binPath = versionDir + "qcm";
-    std::ofstream binFile(binPath, std::ios::binary);
+    std::ofstream binFile(tempPath, std::ios::binary);
     size_t total = 0;
     size_t downloaded = 0;
-
     auto res = client.Get(
-        std::string("/Youg-Otricked/quantum-c-version-manager/releases/download/" + getLatestQCVMTag() + "/") + (getOS() == "linux" ? "qcm-linux" : "qcm-macos"),
+        "/Youg-Otricked/quantum-c-version-manager/releases/download/" 
+        + latest_tag + "/" 
+        + (getOS() == "linux" ? "qcm-linux-amd64" : "qcm-macos-arm64"),
         [&](const httplib::Response& response) {
-            total = std::stoull(response.get_header_value("Content-Length", "0"));
+            total = std::stoull(
+                response.get_header_value("Content-Length", "0")
+            );
             return true;
         },
         [&](const char* data, size_t len) {
             binFile.write(data, len);
             downloaded += len;
-            int pct = total ? (downloaded * 100 / total) : 0;
-            int bars = pct / 5;
-            std::cout << "\rInstalling QCM - [" << std::string(bars, '=') << std::string(20 - bars, ' ') << "] " << pct << "%" << std::flush;
+            int pct = total ? downloaded * 100 / total : 0;
+            std::cout << "\rUpdating QCM ["
+                << std::string(pct / 5, '=')
+                << std::string(20 - pct / 5, ' ')
+                << "] "
+                << pct << "%"
+                << std::flush;
             return true;
         }
     );
-    std::cout << '\n';
     binFile.close();
+    std::cout << "\n";
     if (!res || res->status != 200) {
-        std::filesystem::remove(binPath);
-        throw "Failed to fetch qcm. Are you connected to Wi-Fi?\n";
+        std::filesystem::remove(tempPath);
+        throw "Failed to download QCM\n";
     }
-    std::filesystem::permissions(binPath, 
-        std::filesystem::perms::owner_all | 
-        std::filesystem::perms::group_exec | 
-        std::filesystem::perms::others_exec
-    );
-    std::cout << "Succesfully installed QCMs latest version!" << '\n';
+    try {
+        std::filesystem::rename(tempPath, binPath);
+    }
+    catch (...) {
+        std::cout << "Cannot replace current executable.\n";
+        std::cout << "Installing to ~/.qcm/bin/qcm instead...\n";
+
+        if (!installSelfFallback(tempPath)) {
+            throw "Failed to install updated QCM\n";
+        }
+
+        ensureQcmPath();
+    }
 }
 void use(char** args, int argc) {
     if (argc < 3) {
         throw "Usage: `qcm tooling use <version>`";
     }
+    std::string version = resolveVersion(args[2]);
     const char* home_raw = getenv("HOME");
     if (!home_raw) throw "HOME not set\n";
     std::string home(home_raw);
     std::string versionDir = home + "/.qcm/versions/";
-    std::string binPath = versionDir + "qc-" + args[2];
-    std::string stdlibPath = versionDir + "stdlib-" + args[2] + ".qc";
+    std::string binPath = versionDir + "qc-" + version;
+    std::string stdlibPath = versionDir + "stdlib-" + version + ".qc";
     if (!std::filesystem::exists(binPath) || !std::filesystem::exists(stdlibPath)) {
-        throw "Version " + std::string(args[2]) + " not installed. Run `qcm install " + args[2] + "`";
+        throw "Version " + version + " not installed. Run `qcm install " + version + "`";
     }
     std::string qcBin = home + "/.qc/bin";
     std::string qcLib = home + "/.qc/lib";
@@ -566,23 +676,26 @@ void use(char** args, int argc) {
     std::filesystem::rename(stdlibPath, qcLib + "/stdlib.qc");
     chmod((qcBin + "/qc").c_str(), 0755);
     auto node = getConfigFileNode();
-    node["current"] = args[2];
+    node["current"] = version;
     saveConfigFileNode(node);
     if (std::filesystem::exists("scope.yaml")) {
         std::ifstream in("scope.yaml");
         auto scnode = fkyaml::node::deserialize(in);
-        scnode["project"]["qc_version"] = std::string(args[2]);
+        scnode["project"]["qc_version"] = version;
+
         std::ofstream out("scope.yaml");
         out << fkyaml::node::serialize(scnode);
     }
-    std::cout << "Now using QC " << args[2] << "\n";
+    std::cout << "Now using QC " << version << "\n";
 }
 void uninstall(char** args, int argc) {
     if (argc < 3) {
         throw "Usage: `qcm tooling uninstall <version>`";
     }
-    if (!isValidVersion(args[2])) {
-        throw "Version " + std::string(args[2]) + " isn't installed.";
+    std::string ver = resolveVersion(args[2]);
+    args[2] = ver.data();
+    if (!isValidVersion(resolveVersion(args[2]).data())) {
+        throw "Version " + resolveVersion(args[2]) + " isn't installed.";
     }
     const char* home_raw = getenv("HOME");
     if (!home_raw) throw "HOME not set\n";
@@ -722,7 +835,9 @@ void add(char** args, int argc) {
     std::string scopeText = res->body;
     auto node = fkyaml::node::deserialize(scopeText);
     for (auto [dependancy_name, dependancy_url] : node["dependencies"].as_map()) {
-        char* add_args[] = {args[0], (char*)"add", dependancy_name.get_value<std::string>().data(), (char*)"git", dependancy_url.get_value<std::string>().data()};
+        std::string name = dependancy_name.get_value<std::string>();
+        std::string gz = dependancy_url.get_value<std::string>(); 
+        char* add_args[] = {args[0], (char*)"add", name.data(), (char*)"git", gz.data()};
         add(add_args, 5);
     }
     const char* home_raw = getenv("HOME");

@@ -40,13 +40,13 @@ jobs:
           sudo apt install -y g++ libssl-dev
       - name: Build
         run: |
-          g++ -std=c++23 main.cpp -o qcm-linux -lssl -lcrypto -DCPPHTTPLIB_OPENSSL_SUPPORT
+          g++ -std=c++23 main.cpp -o qcm-linux-amd64 -lssl -lcrypto -DCPPHTTPLIB_OPENSSL_SUPPORT
 
       - name: Upload Linux Binary
         uses: actions/upload-artifact@v4
         with:
-          name: qcm-linux
-          path: qcm-linux
+          name: qcm-linux-amd64
+          path: qcm-linux-amd64
 
   build-macos:
     needs: [tag]
@@ -59,12 +59,12 @@ jobs:
           brew install openssl@3
       - name: Build
         run: |
-          clang++ -std=c++2b main.cpp -o qcm-macos -I$(brew --prefix openssl@3)/include -L$(brew --prefix openssl@3)/lib -lssl -lcrypto -framework CoreFoundation -framework Security -DCPPHTTPLIB_OPENSSL_SUPPORT
+          clang++ -std=c++2b main.cpp -o qcm-macos-arm64 -I$(brew --prefix openssl@3)/include -L$(brew --prefix openssl@3)/lib -lssl -lcrypto -framework CoreFoundation -framework Security -DCPPHTTPLIB_OPENSSL_SUPPORT
       - name: Upload macOS Binary
         uses: actions/upload-artifact@v4
         with:
-          name: qcm-macos
-          path: qcm-macos
+          name: qcm-macos-arm64
+          path: qcm-macos-arm64
   build-debian:
     needs: [tag]
     runs-on: ubuntu-latest
@@ -97,12 +97,16 @@ jobs:
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@v4
+      - name: Generate checksums
+        run: |
+          sha256sum qcm-linux-amd64 qcm-macos-arm64 > checksums.txt
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ needs.tag.outputs.version }}
           files: |
-            qcm-linux/qcm-linux
-            qcm-macos/qcm-macos
+            qcm-linux-amd64/qcm-linux-amd64
+            qcm-macos-arm64/qcm-macos-arm64
             qcm-debian/qcm_${{ needs.tag.outputs.version }}_amd64.deb
             install.sh
+            checksums.txt
