@@ -20,8 +20,9 @@ jobs:
       
       - name: Get version
         id: get_version
-        run: echo "version=$(cat version.txt)" >> $GITHUB_OUTPUT
-      
+        run: |
+          VERSION=$(tr -d '[:space:]' < version.txt)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
       - name: Create tag
         run: |
           git config user.name "GitHub Actions"
