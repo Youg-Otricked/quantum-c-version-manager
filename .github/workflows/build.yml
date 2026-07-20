@@ -41,14 +41,14 @@ jobs:
           sudo apt install -y g++ libssl-dev
       - name: Build
         run: |
-          g++ -std=c++23 main.cpp -o qcm-linux-amd64 -lssl -lcrypto -DCPPHTTPLIB_OPENSSL_SUPPORT
-          tar -czf qcm-linux-amd64.tar.gz qcm-linux-amd64
+          g++ -std=c++23 main.cpp -o qcm-linux -lssl -lcrypto -DCPPHTTPLIB_OPENSSL_SUPPORT
 
       - name: Upload Linux Binary
         uses: actions/upload-artifact@v4
         with:
-          name: qcm-linux-amd64
-          path: qcm-linux-amd64.tar.gz
+          name: qcm-linux
+          path: qcm-linux
+
   build-macos:
     needs: [tag]
     runs-on: macos-latest
@@ -60,20 +60,12 @@ jobs:
           brew install openssl@3
       - name: Build
         run: |
-          clang++ -std=c++2b main.cpp -o qcm-macos-arm64 \
-            -I$(brew --prefix openssl@3)/include \
-            -L$(brew --prefix openssl@3)/lib \
-            -lssl -lcrypto \
-            -framework CoreFoundation \
-            -framework Security \
-            -DCPPHTTPLIB_OPENSSL_SUPPORT
-          tar -czf qcm-macos-arm64.tar.gz qcm-macos-arm64
-
+          clang++ -std=c++2b main.cpp -o qcm-macos -I$(brew --prefix openssl@3)/include -L$(brew --prefix openssl@3)/lib -lssl -lcrypto -framework CoreFoundation -framework Security -DCPPHTTPLIB_OPENSSL_SUPPORT
       - name: Upload macOS Binary
         uses: actions/upload-artifact@v4
         with:
-          name: qcm-macos-arm64
-          path: qcm-macos-arm64.tar.gz 
+          name: qcm-macos
+          path: qcm-macos
   build-debian:
     needs: [tag]
     runs-on: ubuntu-latest
@@ -109,16 +101,16 @@ jobs:
       - name: Generate checksums
         run: |
           sha256sum \
-            qcm-linux-amd64/qcm-linux-amd64.tar.gz \
-            qcm-macos-arm64/qcm-macos-arm64.tar.gz \
+            qcm-linux/qcm-linux \
+            qcm-macos/qcm-macos \
             > checksums.txt
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ needs.tag.outputs.version }}
           files: |
-            qcm-linux-amd64/qcm-linux-amd64.tar.gz
-            qcm-macos-arm64/qcm-macos-arm64.tar.gz
+            qcm-linux/qcm-linux
+            qcm-macos/qcm-macos
             qcm-debian/qcm_${{ needs.tag.outputs.version }}_amd64.deb
             install.sh
             checksums.txt

@@ -13,10 +13,7 @@
 #include "json.hpp"
 #include <sys/stat.h>
 #include <ranges>
-#ifdef __APPLE__
-#include <mach-o/dyld.h>
-#endif
-const std::string QCVM_VERSION = "2.1.2";
+const std::string QCVM_VERSION = "2.1.3";
 #include <unordered_set>
 std::unordered_set<std::string> load_tagged_versions() {
     std::unordered_set<std::string> versions;
@@ -606,15 +603,13 @@ void upgrade(char** args, int argc) {
         {"User-Agent", "qcm/" + std::string(QCVM_VERSION)}
     });
     client.set_follow_location(true);
-    std::string archivePath = tempPath + ".tar.gz";
-    std::ofstream binFile(archivePath, std::ios::binary);
+    std::ofstream binFile(tempPath, std::ios::binary);
     size_t total = 0;
     size_t downloaded = 0;
     auto res = client.Get(
-        "/Youg-Otricked/quantum-c-version-manager/releases/download/"
-        + latest_tag + "/"
-        + (getOS() == "linux" ? "qcm-linux-amd64" : "qcm-macos-arm64")
-        + ".tar.gz",
+        "/Youg-Otricked/quantum-c-version-manager/releases/download/" 
+        + latest_tag + "/" 
+        + (getOS() == "linux" ? "qcm-linux" : "qcm-macos"),
         [&](const httplib::Response& response) {
             total = std::stoull(
                 response.get_header_value("Content-Length", "0")
@@ -631,32 +626,14 @@ void upgrade(char** args, int argc) {
                 << "] "
                 << pct << "%"
                 << std::flush;
-
             return true;
         }
     );
     binFile.close();
     std::cout << "\n";
     if (!res || res->status != 200) {
-        std::filesystem::remove(archivePath);
-        throw "Failed to download QCM\n";
-    }
-    binFile.close();
-    std::cout << "\n";
-    if (!res || res->status != 200) {
         std::filesystem::remove(tempPath);
         throw "Failed to download QCM\n";
-    }
-    std::string extractDir = tempPath + "-extract";
-    std::filesystem::create_directories(extractDir);
-    std::string cmd =
-        "tar -xzf " + archivePath +
-        " -C " + extractDir;
-    std::string extractedBinary =
-        extractDir + "/" +
-        (getOS() == "linux" ? "qcm-linux-amd64" : "qcm-macos-arm64");
-    if (system(cmd.c_str()) != 0) {
-        throw "Failed to extract QCM archive\n";
     }
     try {
         std::filesystem::rename(tempPath, binPath);
