@@ -13,6 +13,9 @@
 #include "json.hpp"
 #include <sys/stat.h>
 #include <ranges>
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#endif
 const std::string QCVM_VERSION = "2.1.1";
 #include <unordered_set>
 std::unordered_set<std::string> load_tagged_versions() {
