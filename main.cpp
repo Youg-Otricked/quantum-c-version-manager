@@ -16,7 +16,7 @@
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
 #endif
-const std::string QCVM_VERSION = "2.1.1";
+const std::string QCVM_VERSION = "2.1.2";
 #include <unordered_set>
 std::unordered_set<std::string> load_tagged_versions() {
     std::unordered_set<std::string> versions;
@@ -465,7 +465,7 @@ void install(char** args, int argc) {
     size_t downloaded = 0;
 
     auto res = client.Get(
-        "/Youg-Otricked/QuantumC/releases/download/" + std::string(args[2]) + "/" + (getOS() == "linux" ? "qc-linux-amd64" : "qc-macos-arm64"),
+        "/Youg-Otricked/QuantumC/releases/download/" + std::string(args[2]) + "/" + (getOS() == "linux" ? "qc-linux" : "qc-macos"),
         [&](const httplib::Response& response) {
             total = std::stoull(response.get_header_value("Content-Length", "0"));
             return true;
@@ -606,13 +606,15 @@ void upgrade(char** args, int argc) {
         {"User-Agent", "qcm/" + std::string(QCVM_VERSION)}
     });
     client.set_follow_location(true);
-    std::ofstream binFile(tempPath, std::ios::binary);
+    std::string archivePath = tempPath + ".tar.gz";
+    std::ofstream binFile(archivePath, std::ios::binary);
     size_t total = 0;
     size_t downloaded = 0;
     auto res = client.Get(
-        "/Youg-Otricked/quantum-c-version-manager/releases/download/" 
-        + latest_tag + "/" 
-        + (getOS() == "linux" ? "qcm-linux-amd64" : "qcm-macos-arm64"),
+        "/Youg-Otricked/quantum-c-version-manager/releases/download/"
+        + latest_tag + "/"
+        + (getOS() == "linux" ? "qcm-linux-amd64" : "qcm-macos-arm64")
+        + ".tar.gz",
         [&](const httplib::Response& response) {
             total = std::stoull(
                 response.get_header_value("Content-Length", "0")
@@ -629,14 +631,32 @@ void upgrade(char** args, int argc) {
                 << "] "
                 << pct << "%"
                 << std::flush;
+
             return true;
         }
     );
     binFile.close();
     std::cout << "\n";
     if (!res || res->status != 200) {
+        std::filesystem::remove(archivePath);
+        throw "Failed to download QCM\n";
+    }
+    binFile.close();
+    std::cout << "\n";
+    if (!res || res->status != 200) {
         std::filesystem::remove(tempPath);
         throw "Failed to download QCM\n";
+    }
+    std::string extractDir = tempPath + "-extract";
+    std::filesystem::create_directories(extractDir);
+    std::string cmd =
+        "tar -xzf " + archivePath +
+        " -C " + extractDir;
+    std::string extractedBinary =
+        extractDir + "/" +
+        (getOS() == "linux" ? "qcm-linux-amd64" : "qcm-macos-arm64");
+    if (system(cmd.c_str()) != 0) {
+        throw "Failed to extract QCM archive\n";
     }
     try {
         std::filesystem::rename(tempPath, binPath);
