@@ -16,7 +16,7 @@
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
 #endif
-const std::string QCVM_VERSION = "2.1.31";
+const std::string QCVM_VERSION = "2.1.4";
 #include <unordered_set>
 std::unordered_set<std::string> load_tagged_versions() {
     std::unordered_set<std::string> versions;
@@ -423,11 +423,12 @@ std::string resolveVersion(std::string version) {
 }
 // https://github.com/Youg-Otricked/QuantumC/releases/download/<tag>/<filename>
 void install(char** args, int argc) {
-    if (argc < 4) {
+    if (argc < 3) {
         throw "Usage: `qcm tooling install <version>`";
     }
     std::string resolvedVersion = resolveVersion(args[2]);
-    if (!isValidVersion(args[2])) {
+    args[2] = resolvedVersion.data();
+    if (!isValidVersion(resolvedVersion.data())) {
         throw "Please pass a valid version.";
     }
     std::string currentQCVersion = getCurrentQCVersion();

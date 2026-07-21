@@ -9,6 +9,19 @@ Tooling commands install and update the compiler version, while core installs pa
 
 ---
 
+## Why Use QCM?
+
+`qcm` to C⁴ is equivelent to everythign except `go run` in the `go` tool to Go.
+It's a neccesary part of C⁴ development.
+
+## Example
+```bash
+qcm tooling install latest
+mkdir my-project
+cd my-project
+qcm init
+```
+
 ## Project Structure
 
 QuantumC projects have this structure:
