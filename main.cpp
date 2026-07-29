@@ -1,38 +1,35 @@
-#include <iostream>
-#include <string>
-#include <functional>
-#include <vector>
-#include <fstream> 
+#ifndef CPPHTTPLIB_OPENSSL_SUPPORT
+#define CPPHTTPLIB_OPENSSL_SUPPORT
+#endif
+#include "json.hpp"
+#include "libcurl.hpp"
+#include "yaml.hpp"
+#include <algorithm>
+#include <cstdio>
 #include <cstdlib>
 #include <filesystem>
-#include <cstdio>
-#include <algorithm>
-#include <regex>
-#include "yaml.hpp"
-#include "libcurl.hpp"
-#include "json.hpp"
-#include <sys/stat.h>
+#include <fstream>
+#include <functional>
+#include <iostream>
 #include <ranges>
+#include <regex>
+#include <string>
+#include <sys/stat.h>
+#include <vector>
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
 #endif
-const std::string QCVM_VERSION = "2.1.4";
+const std::string QCVM_VERSION = "2.2.0";
 #include <unordered_set>
 std::unordered_set<std::string> load_tagged_versions() {
     std::unordered_set<std::string> versions;
     httplib::Client client("https://raw.githubusercontent.com");
-    auto res = client.Get(
-        "/Youg-Otricked/quantum-c-version-manager/main/tagged_versions.txt"
-    );
-    if (!res || res->status != 200) {
-        return versions;
-    }
+    auto res = client.Get("/Youg-Otricked/quantum-c-version-manager/main/tagged_versions.txt");
+    if (!res || res->status != 200) { return versions; }
     std::stringstream stream(res->body);
     std::string line;
     while (std::getline(stream, line)) {
-        if (!line.empty()) {
-            versions.insert(line);
-        }
+        if (!line.empty()) { versions.insert(line); }
     }
     return versions;
 }
@@ -41,9 +38,7 @@ std::string getExecutablePath() {
     char result[PATH_MAX];
     ssize_t count = readlink("/proc/self/exe", result, PATH_MAX);
 
-    if (count == -1) {
-        throw "Failed to get executable path\n";
-    }
+    if (count == -1) { throw "Failed to get executable path\n"; }
 
     return std::string(result, count);
 
@@ -53,9 +48,7 @@ std::string getExecutablePath() {
 
     std::vector<char> buffer(size);
 
-    if (_NSGetExecutablePath(buffer.data(), &size) != 0) {
-        throw "Failed to get executable path\n";
-    }
+    if (_NSGetExecutablePath(buffer.data(), &size) != 0) { throw "Failed to get executable path\n"; }
 
     return std::string(buffer.data());
 
@@ -75,9 +68,7 @@ std::unordered_map<std::string, RegistryEntry> parse_registry(const std::string&
     std::stringstream file(text);
     std::string line;
     while (std::getline(file, line)) {
-        if (line.empty() || line.starts_with("#")) {
-            continue;
-        }
+        if (line.empty() || line.starts_with("#")) { continue; }
         std::stringstream ss(line);
         std::string name;
         std::string version;
@@ -87,30 +78,20 @@ std::unordered_map<std::string, RegistryEntry> parse_registry(const std::string&
         std::getline(ss, version, '|');
         std::getline(ss, repo, '|');
         std::getline(ss, description);
-        registry[name] = {
-            version,
-            repo,
-            description
-        };
+        registry[name] = {version, repo, description};
     }
     return registry;
 }
 std::unordered_map<std::string, RegistryEntry> load_registry() {
     httplib::Client client("https://raw.githubusercontent.com");
-    client.set_default_headers({
-        {"User-Agent", "qcm/1.0"}
-    });
-    auto res = client.Get(
-        "/Youg-Otricked/quantum-c-version-manager/main/registry.txt"
-    );
-    if (!res || res->status != 200) {
-        throw "Failed to download package registry\n";
-    }
+    client.set_default_headers({{"User-Agent", "qcm/1.0"}});
+    auto res = client.Get("/Youg-Otricked/quantum-c-version-manager/main/registry.txt");
+    if (!res || res->status != 200) { throw "Failed to download package registry\n"; }
     return parse_registry(res->body);
 }
 std::unordered_map<std::string, RegistryEntry> REGISTRY = load_registry();
 /*
-root structure = 
+root structure =
 **~/.qcm/qcm.yaml**
 installed:
     - V1.....
@@ -125,26 +106,18 @@ void notAdded(char** args, int argc) {
 }
 auto getConfigFileNode() {
     const char* home_raw = getenv("HOME");
-    if (!home_raw) {
-        throw "HOME not set\n";
-    }
+    if (!home_raw) { throw "HOME not set\n"; }
     std::string home(home_raw);
-    if (!std::filesystem::exists(home + "/.qcm/config.yaml")) {
-        throw "Config file doesn't exist. Please run `qcm setup`\n";
-    }
+    if (!std::filesystem::exists(home + "/.qcm/config.yaml")) { throw "Config file doesn't exist. Please run `qcm setup`\n"; }
     FILE* config = std::fopen((home + "/.qcm/config.yaml").c_str(), "r");
-    if (config == nullptr) {
-        throw "Config file doesn't exist. Please run `qcm setup`\n";
-    } 
+    if (config == nullptr) { throw "Config file doesn't exist. Please run `qcm setup`\n"; }
     auto node = fkyaml::node::deserialize(config);
     std::fclose(config);
     return node;
 }
 void saveConfigFileNode(auto node) {
     const char* home_raw = getenv("HOME");
-    if (!home_raw) {
-        throw "HOME not set\n";
-    }
+    if (!home_raw) { throw "HOME not set\n"; }
     std::string home(home_raw);
     std::ofstream file(home + "/.qcm/config.yaml");
     file << node;
@@ -152,9 +125,7 @@ void saveConfigFileNode(auto node) {
 }
 std::string getCurrentVersion() {
     auto node = getConfigFileNode();
-    if (node["current"].is_null()) {
-        return "none";
-    }
+    if (node["current"].is_null()) { return "none"; }
     return node["current"].get_value<std::string>();
 }
 std::string getOS() {
@@ -169,28 +140,20 @@ std::string getOS() {
 std::string parseVersion(const std::string& output) {
     std::regex pattern(R"([xv]\d+\.\d+\.\d+)");
     std::smatch match;
-    if (std::regex_search(output, match, pattern)) {
-        return match[0];
-    }
+    if (std::regex_search(output, match, pattern)) { return match[0]; }
     return "";
 }
 std::string getCurrentQCVersion() {
     FILE* pipe = popen("qc -sv 2>&1", "r");
     char buf[256];
     std::string output;
-    while (fgets(buf, sizeof(buf), pipe)) {
-        output += buf;
-    }
+    while (fgets(buf, sizeof(buf), pipe)) { output += buf; }
     pclose(pipe);
     output.erase(output.find_last_not_of(" \n\r\t") + 1);
-    if (!output.empty() && (output[0] == 'x' || output[0] == 'v')) {
-        return output;
-    }
+    if (!output.empty() && (output[0] == 'x' || output[0] == 'v')) { return output; }
     pipe = popen("qc -v 2>&1", "r");
     output = "";
-    while (fgets(buf, sizeof(buf), pipe)) {
-        output += buf;
-    }
+    while (fgets(buf, sizeof(buf), pipe)) { output += buf; }
     pclose(pipe);
     return parseVersion(output);
 }
@@ -198,21 +161,17 @@ void list(char** args, int argc) {
     auto node = getConfigFileNode();
     for (auto& ver_node : node["installed"]) {
         std::string ver = ver_node.get_value<std::string>();
-        std::cout << ver << (TAGGED_VERSIONS.contains(ver) ? " [QCVM tagged]" : "")
-          << (node["current"].get_value<std::string>() == ver ? " *" : "") << '\n';
+        std::cout << ver << (TAGGED_VERSIONS.contains(ver) ? " [QCVM tagged]" : "") << (node["current"].get_value<std::string>() == ver ? " *" : "")
+                  << '\n';
     }
 }
 void setup(char** args, int argc) {
     bool exportPath = true;
     for (int i = 2; i < argc; i++) {
-        if (std::string(args[i]) == "--no-export") {
-            exportPath = false;
-        }
+        if (std::string(args[i]) == "--no-export") { exportPath = false; }
     }
     const char* home_raw = getenv("HOME");
-    if (!home_raw) {
-        throw "HOME not set\n";
-    }
+    if (!home_raw) { throw "HOME not set\n"; }
     std::string home(home_raw);
     std::filesystem::create_directories(home + "/.qcm/packages");
     std::filesystem::create_directories(home + "/.qcm/versions");
@@ -250,10 +209,7 @@ current: null
         qcmPath = "export PATH=\"$HOME/.qcm/bin:$PATH\"";
     }
     std::ifstream in(rcFile);
-    std::string content(
-        (std::istreambuf_iterator<char>(in)),
-        std::istreambuf_iterator<char>()
-    );
+    std::string content((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
     std::ofstream out(rcFile, std::ios::app);
     if (content.find(".qc/bin") == std::string::npos) {
         out << "\n# Added by qcm\n";
@@ -280,20 +236,17 @@ list-remote: qcm tooling list-remote - lists all remote versions of qc.
 }
 void init(char** args, int argc) {
     std::cout << "\033[?1049h\033[2J\033[H";
-    std::cout << "\nThis command will create your basic qc setup, along with the projects scope.yaml";
+    std::cout << "\nThis command will create your basic qc setup, along with the "
+                 "projects scope.yaml";
     std::cout << "\n\n";
     std::cout << "scope name: (" << std::filesystem::current_path().filename() << ") ";
     std::string scopeName = "";
     std::getline(std::cin, scopeName);
-    if (scopeName.empty() || std::all_of(scopeName.begin(), scopeName.end(), isspace)) {
-        scopeName = std::filesystem::current_path().filename();
-    }
+    if (scopeName.empty() || std::all_of(scopeName.begin(), scopeName.end(), isspace)) { scopeName = std::filesystem::current_path().filename(); }
     std::cout << "version: (1.0.0) ";
     std::string version = "";
     std::getline(std::cin, version);
-    if (version.empty() || std::all_of(version.begin(), version.end(), isspace)) {
-        version = "1.0.0";
-    }
+    if (version.empty() || std::all_of(version.begin(), version.end(), isspace)) { version = "1.0.0"; }
     std::cout << "description: ";
     std::string desc = "";
     std::getline(std::cin, desc);
@@ -301,9 +254,7 @@ void init(char** args, int argc) {
     std::string entry = "";
     std::getline(std::cin, entry);
     static const std::regex pattern(R"(^[a-zA-Z_][a-zA-Z0-9_]*$)");
-    if (entry.empty() || !std::regex_match(entry, pattern)) {
-        entry = "main";
-    }
+    if (entry.empty() || !std::regex_match(entry, pattern)) { entry = "main"; }
     std::cout << "test command: ";
     std::string testCmd = "";
     std::getline(std::cin, testCmd);
@@ -315,60 +266,48 @@ void init(char** args, int argc) {
     std::cout << "author: " << (username[0] ? "(" + std::string(username) + ") " : "");
     std::string author = "";
     std::getline(std::cin, author);
-    if (author.empty() || std::all_of(author.begin(), author.end(), isspace)) {
-        author = username;
-    }
+    if (author.empty() || std::all_of(author.begin(), author.end(), isspace)) { author = username; }
     std::ofstream scope("scope.yaml");
     scope << "project:\n"
-        << "  name: " << scopeName << "\n"
-        << "  version: " << version << "\n"
-        << "  description: " << desc << "\n"
-        << "  author: " << author << "\n"
-        << "  repo: " << gitRepo << "\n"
-        << "  qc_version: " << getCurrentVersion() << "\n"
-        << "\ndependencies: {}\n"
-        << "\ncommands:\n"
-        << "  test: " << testCmd << "\n"
-        << "  run: qc -c main.qc -o " << scopeName << " && ./" << scopeName << "\n"
-        << "  build: qc -c main.qc -o " << scopeName << "\n";
+          << "  name: " << scopeName << "\n"
+          << "  version: " << version << "\n"
+          << "  description: " << desc << "\n"
+          << "  author: " << author << "\n"
+          << "  repo: " << gitRepo << "\n"
+          << "  qc_version: " << getCurrentVersion() << "\n"
+          << "\ndependencies: {}\n"
+          << "\ncommands:\n"
+          << "  test: " << testCmd << "\n"
+          << "  run: qc -c main.qc -o " << scopeName << " && ./" << scopeName << "\n"
+          << "  build: qc -c main.qc -o " << scopeName << "\n";
     scope.close();
     std::cout << "code options:\n\n";
-    std::cout << "would you like the compiler to automatically print interpret/compile time? (Y/n) ";
+    std::cout << "would you like the compiler to automatically print "
+                 "interpret/compile time? (Y/n) ";
     std::string choice = "";
     std::string inlineDirs = "";
     std::getline(std::cin, choice);
-    if (choice == "Y" || choice == "y") {
-        inlineDirs = "// @show-time\n";
-    }
+    if (choice == "Y" || choice == "y") { inlineDirs = "// @show-time\n"; }
     std::string entrypointLine = "";
-    if (entry != "main") {
-        entrypointLine = "#entrypoint=" + entry + "\n";
-    }
+    if (entry != "main") { entrypointLine = "#entrypoint=" + entry + "\n"; }
     std::cout << "will this project be a one file or multi file project? (Y/n) ";
     std::getline(std::cin, choice);
     bool multiFile = false;
-    if (choice == "Y" || choice == "y") {
-        multiFile = true;
-    }
+    if (choice == "Y" || choice == "y") { multiFile = true; }
     std::cout << "will this project have a api/lib for others to use? (Y/n) ";
     std::getline(std::cin, choice);
     bool api = false;
-    if (choice == "Y" || choice == "y") {
-        api = true;
-    }
+    if (choice == "Y" || choice == "y") { api = true; }
     if (api) {
         std::filesystem::create_directory("lib");
         std::ofstream("lib/lib.qc", std::ios::app).close();
     }
-    for (const auto& dir : {"dependencies", "tests", "docs"}) {
-        std::filesystem::create_directory(dir);
-    }
+    for (const auto& dir : {"dependencies", "tests", "docs"}) { std::filesystem::create_directory(dir); }
     std::ofstream("docs/index.md", std::ios::app).close();
     std::ofstream mainFile("main.qc");
-    mainFile << inlineDirs << entrypointLine <<
-    (multiFile ? "namespace Exported {\n    \n}\n" : "")
-    << "int " << entry << "() {\n" << "    return 0;" 
-    << '\n' << '}' << '\n';
+    mainFile << inlineDirs << entrypointLine << (multiFile ? "namespace Exported {\n    \n}\n" : "") << "int " << entry << "() {\n"
+             << "    return 0;" << '\n'
+             << '}' << '\n';
     mainFile.close();
     std::cout.flush();
     std::cout << "\033[?1049l";
@@ -377,11 +316,9 @@ void init(char** args, int argc) {
 std::string getVersions() {
     httplib::Client client("https://api.github.com");
     client.set_default_headers({{"User-Agent", "qcm/1.0"}});
-    
+
     auto res = client.Get("/repos/Youg-Otricked/QuantumC/releases");
-    if (!res || res->status != 200) {
-        throw "Failed to fetch releases. Are you connected to Wi-Fi?\n";
-    }
+    if (!res || res->status != 200) { throw "Failed to fetch releases. Are you connected to Wi-Fi?\n"; }
     return res->body;
 }
 void listRemote(char** args, int argc) {
@@ -390,7 +327,7 @@ void listRemote(char** args, int argc) {
         std::string tag = release["tag_name"];
         bool deprecated = tag[0] == 'v';
         if (tag[0] != 'x' && tag[0] != 'v') continue;
-        std::cout << tag  << (TAGGED_VERSIONS.contains(tag) ? " [QCVM tagged]" : "") << (deprecated ? " [deprecated]" : "") << '\n';
+        std::cout << tag << (TAGGED_VERSIONS.contains(tag) ? " [QCVM tagged]" : "") << (deprecated ? " [deprecated]" : "") << '\n';
     }
 }
 bool isValidVersion(char* version) {
@@ -410,27 +347,22 @@ std::string getLatestQCTag() {
     client.set_follow_location(true);
     auto res = client.Get("/repos/Youg-Otricked/QuantumC/releases/latest");
     if (!res || res->status != 200) {
-        throw "Failed to check for latest QuantumC version. Are you connected to Wi-Fi?\n";
+        throw "Failed to check for latest QuantumC version. Are you connected to "
+              "Wi-Fi?\n";
     }
     auto json = nlohmann::json::parse(res->body);
     return json["tag_name"].get<std::string>();
 }
 std::string resolveVersion(std::string version) {
-    if (version == "latest") {
-        return getLatestQCTag();
-    }
+    if (version == "latest") { return getLatestQCTag(); }
     return version;
 }
 // https://github.com/Youg-Otricked/QuantumC/releases/download/<tag>/<filename>
 void install(char** args, int argc) {
-    if (argc < 3) {
-        throw "Usage: `qcm tooling install <version>`";
-    }
+    if (argc < 3) { throw "Usage: `qcm tooling install <version>`"; }
     std::string resolvedVersion = resolveVersion(args[2]);
     args[2] = resolvedVersion.data();
-    if (!isValidVersion(resolvedVersion.data())) {
-        throw "Please pass a valid version.";
-    }
+    if (!isValidVersion(resolvedVersion.data())) { throw "Please pass a valid version."; }
     std::string currentQCVersion = getCurrentQCVersion();
     if (getConfigFileNode()["installed"].contains(resolvedVersion)) {
         throw "Version " + resolvedVersion + "already installed. Did you mean to run `qcm use " + args[2] + "`?";
@@ -450,15 +382,14 @@ void install(char** args, int argc) {
         saveConfigFileNode(node);
     }
     if (currentQCVersion == resolvedVersion) {
-        throw "Version " + resolvedVersion + " is already installed. Did you mean to run `qcm use " + args[2] + "`? (JK it wasnt stored becuase you installed it but not via QCVM)";
+        throw "Version " + resolvedVersion + " is already installed. Did you mean to run `qcm use " + args[2] +
+            "`? (JK it wasnt stored becuase you installed it but not via QCVM)";
     }
     httplib::Client client("https://github.com");
     client.set_default_headers({{"User-Agent", "qcm/1.0"}});
     client.set_follow_location(true);
     const char* home_raw = getenv("HOME");
-    if (!home_raw) {
-        throw "HOME not set\n";
-    }
+    if (!home_raw) { throw "HOME not set\n"; }
     std::string home(home_raw);
     std::string versionDir = home + "/.qcm/versions/";
     std::string binPath = versionDir + "qc-" + args[2];
@@ -479,8 +410,7 @@ void install(char** args, int argc) {
             int bars = pct / 5;
             std::cout << "\rInstalling QC - [" << std::string(bars, '=') << std::string(20 - bars, ' ') << "] " << pct << "%" << std::flush;
             return true;
-        }
-    );
+        });
     std::cout << '\n';
     binFile.close();
     if (!res || res->status != 200) {
@@ -504,8 +434,7 @@ void install(char** args, int argc) {
             int bars = pct / 5;
             std::cout << "\rInstalling QC Stdlib - [" << std::string(bars, '=') << std::string(20 - bars, ' ') << "] " << pct << "%" << std::flush;
             return true;
-        }
-    );
+        });
     std::cout << '\n';
     stdlibFile.close();
     if (!stdres || stdres->status != 200) {
@@ -514,9 +443,7 @@ void install(char** args, int argc) {
     }
     std::string qcBin = home + "/.qc" + "/bin";
     std::string qcStdlib = home + "/.qc" + "/lib";
-    if (std::filesystem::exists(qcBin + "/qc")) {
-        std::filesystem::rename(qcBin + "/qc", versionDir + "qc-" + currentQCVersion);
-    }
+    if (std::filesystem::exists(qcBin + "/qc")) { std::filesystem::rename(qcBin + "/qc", versionDir + "qc-" + currentQCVersion); }
     if (std::filesystem::exists(qcStdlib + "/stdlib.qc")) {
         std::filesystem::rename(qcStdlib + "/stdlib.qc", versionDir + "stdlib-" + currentQCVersion + ".qc");
     }
@@ -542,42 +469,30 @@ std::string getLatestQCVMTag() {
     client.set_default_headers({{"User-Agent", "qcm/1.0"}});
     client.set_follow_location(true);
     auto res = client.Get("/repos/Youg-Otricked/quantum-c-version-manager/releases/latest");
-    if (!res || res->status != 200) {
-        throw "Failed to check for updates. Are you connected to Wi-Fi?\n";
-    }
+    if (!res || res->status != 200) { throw "Failed to check for updates. Are you connected to Wi-Fi?\n"; }
     auto json = nlohmann::json::parse(res->body);
     return json["tag_name"].get<std::string>();
 }
 bool installSelfFallback(const std::string& tempPath) {
     const char* home_raw = getenv("HOME");
-    if (!home_raw) {
-        return false;
-    }
+    if (!home_raw) { return false; }
     std::string home(home_raw);
     std::string qcmDir = home + "/.qcm/bin";
     std::string fallback = qcmDir + "/qcm";
     std::filesystem::create_directories(qcmDir);
     try {
         std::filesystem::rename(tempPath, fallback);
-        std::filesystem::permissions(
-            fallback,
-            std::filesystem::perms::owner_all |
-            std::filesystem::perms::group_exec |
-            std::filesystem::perms::others_exec
-        );
+        std::filesystem::permissions(fallback,
+                                     std::filesystem::perms::owner_all | std::filesystem::perms::group_exec | std::filesystem::perms::others_exec);
         return true;
-    } catch (...) {
-        return false;
-    }
+    } catch (...) { return false; }
 }
 void ensureQcmPath() {
     const char* home_raw = getenv("HOME");
     if (!home_raw) return;
     std::string home(home_raw);
     std::string path = getenv("PATH") ? getenv("PATH") : "";
-    if (path.find(home + "/.qcm/bin") != std::string::npos) {
-        return;
-    }
+    if (path.find(home + "/.qcm/bin") != std::string::npos) { return; }
     std::string shell = getenv("SHELL") ? getenv("SHELL") : "";
     std::string rcFile;
     if (shell.ends_with("zsh"))
@@ -598,42 +513,28 @@ void ensureQcmPath() {
 }
 void upgrade(char** args, int argc) {
     std::string latest_tag = getLatestQCVMTag();
-    if (latest_tag == QCVM_VERSION) {
-        throw "QCM is already up to date (" + QCVM_VERSION + ")";
-    }
+    if (latest_tag == QCVM_VERSION) { throw "QCM is already up to date (" + QCVM_VERSION + ")"; }
     std::string binPath = getExecutablePath();
     std::string tempPath = binPath + ".new";
     httplib::Client client("https://github.com");
-    client.set_default_headers({
-        {"User-Agent", "qcm/" + std::string(QCVM_VERSION)}
-    });
+    client.set_default_headers({{"User-Agent", "qcm/" + std::string(QCVM_VERSION)}});
     client.set_follow_location(true);
     std::ofstream binFile(tempPath, std::ios::binary);
     size_t total = 0;
     size_t downloaded = 0;
     auto res = client.Get(
-        "/Youg-Otricked/quantum-c-version-manager/releases/download/" 
-        + latest_tag + "/" 
-        + (getOS() == "linux" ? "qcm-linux" : "qcm-macos"),
+        "/Youg-Otricked/quantum-c-version-manager/releases/download/" + latest_tag + "/" + (getOS() == "linux" ? "qcm-linux" : "qcm-macos"),
         [&](const httplib::Response& response) {
-            total = std::stoull(
-                response.get_header_value("Content-Length", "0")
-            );
+            total = std::stoull(response.get_header_value("Content-Length", "0"));
             return true;
         },
         [&](const char* data, size_t len) {
             binFile.write(data, len);
             downloaded += len;
             int pct = total ? downloaded * 100 / total : 0;
-            std::cout << "\rUpdating QCM ["
-                << std::string(pct / 5, '=')
-                << std::string(20 - pct / 5, ' ')
-                << "] "
-                << pct << "%"
-                << std::flush;
+            std::cout << "\rUpdating QCM [" << std::string(pct / 5, '=') << std::string(20 - pct / 5, ' ') << "] " << pct << "%" << std::flush;
             return true;
-        }
-    );
+        });
     binFile.close();
     std::cout << "\n";
     if (!res || res->status != 200) {
@@ -642,22 +543,17 @@ void upgrade(char** args, int argc) {
     }
     try {
         std::filesystem::rename(tempPath, binPath);
-    }
-    catch (...) {
+    } catch (...) {
         std::cout << "Cannot replace current executable.\n";
         std::cout << "Installing to ~/.qcm/bin/qcm instead...\n";
 
-        if (!installSelfFallback(tempPath)) {
-            throw "Failed to install updated QCM\n";
-        }
+        if (!installSelfFallback(tempPath)) { throw "Failed to install updated QCM\n"; }
 
         ensureQcmPath();
     }
 }
 void use(char** args, int argc) {
-    if (argc < 3) {
-        throw "Usage: `qcm tooling use <version>`";
-    }
+    if (argc < 3) { throw "Usage: `qcm tooling use <version>`"; }
     std::string version = resolveVersion(args[2]);
     const char* home_raw = getenv("HOME");
     if (!home_raw) throw "HOME not set\n";
@@ -671,9 +567,7 @@ void use(char** args, int argc) {
     std::string qcBin = home + "/.qc/bin";
     std::string qcLib = home + "/.qc/lib";
     std::string currentVersion = getCurrentQCVersion();
-    if (std::filesystem::exists(qcBin + "/qc")) {
-        std::filesystem::rename(qcBin + "/qc", versionDir + "qc-" + currentVersion);
-    }
+    if (std::filesystem::exists(qcBin + "/qc")) { std::filesystem::rename(qcBin + "/qc", versionDir + "qc-" + currentVersion); }
     if (std::filesystem::exists(qcLib + "/stdlib.qc")) {
         std::filesystem::rename(qcLib + "/stdlib.qc", versionDir + "stdlib-" + currentVersion + ".qc");
     }
@@ -694,37 +588,25 @@ void use(char** args, int argc) {
     std::cout << "Now using QC " << version << "\n";
 }
 void uninstall(char** args, int argc) {
-    if (argc < 3) {
-        throw "Usage: `qcm tooling uninstall <version>`";
-    }
+    if (argc < 3) { throw "Usage: `qcm tooling uninstall <version>`"; }
     std::string ver = resolveVersion(args[2]);
     args[2] = ver.data();
-    if (!isValidVersion(resolveVersion(args[2]).data())) {
-        throw "Version " + resolveVersion(args[2]) + " isn't installed.";
-    }
+    if (!isValidVersion(resolveVersion(args[2]).data())) { throw "Version " + resolveVersion(args[2]) + " isn't installed."; }
     const char* home_raw = getenv("HOME");
     if (!home_raw) throw "HOME not set\n";
     std::string home(home_raw);
-    if (std::filesystem::exists(home + "/.qcm/versions/qc-" + args[2])) {
-        std::filesystem::remove(home + "/.qcm/versions/qc-" + args[2]);
-    }
+    if (std::filesystem::exists(home + "/.qcm/versions/qc-" + args[2])) { std::filesystem::remove(home + "/.qcm/versions/qc-" + args[2]); }
     if (std::filesystem::exists(home + "/.qcm/versions/stdlib-" + args[2] + ".qc")) {
         std::filesystem::remove(home + "/.qcm/versions/stdlib-" + args[2] + ".qc");
     }
     if (getCurrentQCVersion() == args[2]) {
-        if (std::filesystem::exists(home + "/.qc/bin/qc")) {
-            std::filesystem::remove(home + "/.qc/bin/qc");
-        }
-        if (std::filesystem::exists(home + "/.qc/lib/stdlib.qc")) {
-            std::filesystem::remove(home + "/.qc/lib/stdlib.qc");
-        }
+        if (std::filesystem::exists(home + "/.qc/bin/qc")) { std::filesystem::remove(home + "/.qc/bin/qc"); }
+        if (std::filesystem::exists(home + "/.qc/lib/stdlib.qc")) { std::filesystem::remove(home + "/.qc/lib/stdlib.qc"); }
     }
-    auto node = getConfigFileNode();  
+    auto node = getConfigFileNode();
     auto& seq = node["installed"].as_seq();
     auto it = std::find(seq.begin(), seq.end(), args[2]);
-    if (it != seq.end()) {
-        seq.erase(it);
-    }
+    if (it != seq.end()) { seq.erase(it); }
     node["current"] = (node["installed"].empty() ? (getCurrentQCVersion().empty() ? "" : getCurrentQCVersion()) : node["installed"][0]);
     saveConfigFileNode(node);
     if (std::filesystem::exists("scope.yaml")) {
@@ -737,39 +619,25 @@ void uninstall(char** args, int argc) {
     std::cout << "Successfully uninstalled QuantumC version " << args[2] << '\n';
 }
 void run(char** args, int argc) {
-    if (argc < 3) {
-        throw "usage: `qcm run <command>`";
-    }
-    if (!std::filesystem::exists("scope.yaml")) {
-        throw "no scope.yaml found in current directory\n";
-    }
+    if (argc < 3) { throw "usage: `qcm run <command>`"; }
+    if (!std::filesystem::exists("scope.yaml")) { throw "no scope.yaml found in current directory\n"; }
     std::ifstream file("scope.yaml");
     auto root = fkyaml::node::deserialize(file);
     auto& commands = root["commands"];
-    if (!commands.contains(args[2])) {
-        throw "command '" + std::string(args[2]) + "' not found in scope.yaml\n";
-    }
+    if (!commands.contains(args[2])) { throw "command '" + std::string(args[2]) + "' not found in scope.yaml\n"; }
     auto cmd = commands[args[2]].get_value<std::string>();
-    if (cmd.empty()) {
-        throw "command '" + std::string(args[2]) + "' is empty\n";
-    }
+    if (cmd.empty()) { throw "command '" + std::string(args[2]) + "' is empty\n"; }
     std::system(cmd.c_str());
 }
 void add(char** args, int argc);
 void syncScope(char** args, int argc) {
-    if (!std::filesystem::exists("scope.yaml")) {
-        throw std::string("No scope.yaml found in current directory.");
-    }
+    if (!std::filesystem::exists("scope.yaml")) { throw std::string("No scope.yaml found in current directory."); }
     std::ifstream in("scope.yaml");
     auto scnode = fkyaml::node::deserialize(in);
     in.close();
-    if (!scnode.contains("project") || !scnode["project"].contains("qc_version")) {
-        throw std::string("No qc_version found in scope.yaml");
-    }
+    if (!scnode.contains("project") || !scnode["project"].contains("qc_version")) { throw std::string("No qc_version found in scope.yaml"); }
     std::string version = scnode["project"]["qc_version"].get_value<std::string>();
-    if (version.empty()) {
-        throw std::string("qc_version is empty in scope.yaml");
-    }
+    if (version.empty()) { throw std::string("qc_version is empty in scope.yaml"); }
     auto node = getConfigFileNode();
     if (node["installed"].contains(version)) {
         char* use_args[] = {args[0], (char*)"use", version.data()};
@@ -781,14 +649,43 @@ void syncScope(char** args, int argc) {
     }
     for (auto [dependancy_name, dependancy_url] : scnode["dependencies"].as_map()) {
         std::string name = dependancy_name.get_value<std::string>();
-        std::string gz = dependancy_url.get_value<std::string>(); 
+        std::string gz = dependancy_url.get_value<std::string>();
         char* add_args[] = {args[0], (char*)"add", name.data(), (char*)"git", gz.data()};
         add(add_args, 5);
     }
 }
+struct Version {
+    int major;
+    int minor;
+    int patch;
+};
+Version ParseVersion(std::string_view s) {
+    if (!s.empty() && s.front() == 'x') s.remove_prefix(1);
+
+    Version v{};
+    std::sscanf(s.data(), "%d.%d.%d", &v.major, &v.minor, &v.patch);
+    return v;
+}
+bool operator>=(const Version& a, const Version& b) {
+    return std::tie(a.major, a.minor, a.patch) >= std::tie(b.major, b.minor, b.patch);
+}
+void addAliasToCommands(fkyaml::node& root, const std::string& name) {
+    if (!root.contains("commands")) return;
+    if (!root.contains("aliases")) root["aliases"] = fkyaml::node::deserialize("{}");
+    root["aliases"][name] = "dependencies/" + name;
+    auto& commands = root["commands"];
+    for (auto& [cmd_name, cmd_node] : commands.as_map()) {
+        std::string cmd = cmd_node.get_value<std::string>();
+        if (cmd.find("-add " + name + " ") == std::string::npos) {
+            cmd += " -add " + name + " dependencies/" + name;
+            cmd_node = cmd;
+        }
+    }
+}
 void add(char** args, int argc) {
     if (argc < 3) {
-        throw "Usage: qcm add <package-name> [git <rawusercontent url to a project that has a scope.yaml> <git .tar.gz tarball url>]";
+        throw "Usage: qcm add <package-name> [git <rawusercontent url to a project "
+              "that has a scope.yaml> <git .tar.gz tarball url>]";
     }
     std::string name = args[2];
     std::string source;
@@ -799,49 +696,38 @@ void add(char** args, int argc) {
         source = args[4];
         git_repo = args[5];
     } else {
-        type = "registry";        
-        
-        if (!REGISTRY.contains(name)) {
-            throw "The registry does not contain package " + name + std::string("\n");
-        }
+        type = "registry";
+
+        if (!REGISTRY.contains(name)) { throw "The registry does not contain package " + name + std::string("\n"); }
         source = REGISTRY[name].repo;
     }
 
-    if (!std::filesystem::exists("scope.yaml")) {
-        throw "No scope.yaml found in current directory";
-    }
+    if (!std::filesystem::exists("scope.yaml")) { throw "No scope.yaml found in current directory"; }
     std::ifstream in("scope.yaml");
     auto root = fkyaml::node::deserialize(in);
     in.close();
-    if (!root.contains("dependencies")) {
-        root["dependencies"] = fkyaml::node::deserialize("{}");
-    }
+    if (!root.contains("dependencies")) { root["dependencies"] = fkyaml::node::deserialize("{}"); }
 
     auto& deps = root["dependencies"];
     deps[name] = source;
+    if (ParseVersion(getCurrentQCVersion()) >= ParseVersion("x0.24.01")) { addAliasToCommands(root, name); }
     std::string url = source;
     size_t proto = url.find("://");
     size_t host_start = (proto == std::string::npos) ? 0 : proto + 3;
     size_t path_start = url.find('/', host_start);
-    if (path_start == std::string::npos) {
-        throw "Invalid URL";
-    }
+    if (path_start == std::string::npos) { throw "Invalid URL"; }
     std::string host = url.substr(0, path_start);
     std::string path = url.substr(path_start);
     httplib::Client client(host);
     auto res = client.Get((path + "/scope.yaml").c_str());
-    if (!res) {
-        throw "Failed to get scope.yaml. Are you connected to Wi-Fi?";
-    }
-    if (res->status != 200) {
-        throw "HTTP error: " + std::to_string(res->status);
-    }
+    if (!res) { throw "Failed to get scope.yaml. Are you connected to Wi-Fi?"; }
+    if (res->status != 200) { throw "HTTP error: " + std::to_string(res->status); }
     url = git_repo;
     std::string scopeText = res->body;
     auto node = fkyaml::node::deserialize(scopeText);
     for (auto [dependancy_name, dependancy_url] : node["dependencies"].as_map()) {
         std::string name = dependancy_name.get_value<std::string>();
-        std::string gz = dependancy_url.get_value<std::string>(); 
+        std::string gz = dependancy_url.get_value<std::string>();
         char* add_args[] = {args[0], (char*)"add", name.data(), (char*)"git", gz.data()};
         add(add_args, 5);
     }
@@ -860,18 +746,14 @@ void add(char** args, int argc) {
             size_t first_slash = line.find('/');
             if (first_slash != std::string::npos) {
                 std::string clean_name = line.substr(first_slash + 1);
-                if (!clean_name.empty()) {
-                    files.push_back(clean_name);
-                }
+                if (!clean_name.empty()) { files.push_back(clean_name); }
             }
         }
         pclose(pipe);
         for (const std::string& file_name : files) {
             if (!file_name.ends_with(".qc") && !file_name.ends_with(".md")) continue;
             std::filesystem::path full_dest_path = home + "/.qcm/packages/" + name + "/" + file_name;
-            if (full_dest_path.has_parent_path()) {
-                std::filesystem::create_directories(full_dest_path.parent_path());
-            }
+            if (full_dest_path.has_parent_path()) { std::filesystem::create_directories(full_dest_path.parent_path()); }
             size_t total = 0;
             size_t downloaded = 0;
             std::ofstream qcfile(full_dest_path, std::ios::binary);
@@ -887,10 +769,10 @@ void add(char** args, int argc) {
                     downloaded += len;
                     int pct = total ? (downloaded * 100 / total) : 0;
                     int bars = pct / 5;
-                    std::cout << "\rInstalling file " << file_name << " - [" << std::string(bars, '=') << std::string(20 - bars, ' ') << "] " << pct << "%" << std::flush;
+                    std::cout << "\rInstalling file " << file_name << " - [" << std::string(bars, '=') << std::string(20 - bars, ' ') << "] " << pct
+                              << "%" << std::flush;
                     return true;
-                }
-            ); 
+                });
         }
         std::cout << "\nPackage installation complete!\n";
     } else {
@@ -907,29 +789,34 @@ void add(char** args, int argc) {
     out << fkyaml::node::serialize(root);
     std::cout << "Added dependency '" << name << "' -> " << source << '\n';
 }
-void removePackage(char** args, int argc) {
-    if (argc < 3) {
-        throw "Usage: qcm remove <package-name>";
+void removeAliasFromCommands(fkyaml::node& root, const std::string& name) {
+    if (root.contains("aliases")) { root["aliases"].as_map().erase(name); }
+    if (!root.contains("commands")) return;
+    auto& commands = root["commands"];
+    std::string alias = "-ad " + name + " dependencies/" + name;
+    for (auto& [cmd_name, cmd_node] : commands.as_map()) {
+        std::string cmd = cmd_node.get_value<std::string>();
+        size_t pos = cmd.find(alias);
+        if (pos != std::string::npos) { cmd.erase(pos, alias.size()); }
+        cmd_node = cmd;
     }
+}
+void removePackage(char** args, int argc) {
+    if (argc < 3) { throw "Usage: qcm remove <package-name>"; }
 
     std::string name = args[2];
 
-    if (!std::filesystem::exists("scope.yaml")) {
-        throw "No scope.yaml found in current directory";
-    }
+    if (!std::filesystem::exists("scope.yaml")) { throw "No scope.yaml found in current directory"; }
 
     std::ifstream in("scope.yaml");
     auto root = fkyaml::node::deserialize(in);
     in.close();
 
-    if (!root.contains("dependencies") || !root["dependencies"].contains(name)) {
-        throw "Dependency not found: " + name;
-    }
+    if (!root.contains("dependencies") || !root["dependencies"].contains(name)) { throw "Dependency not found: " + name; }
     std::string link = "dependencies/" + name;
-    if (std::filesystem::exists(link) || std::filesystem::is_symlink(link)) {
-        std::filesystem::remove(link);
-    }
+    if (std::filesystem::exists(link) || std::filesystem::is_symlink(link)) { std::filesystem::remove(link); }
     root["dependencies"].as_map().erase(name);
+    if (ParseVersion(getCurrentQCVersion()) >= ParseVersion("x0.24.01")) { removeAliasFromCommands(root, name); }
     std::ofstream out("scope.yaml");
     out << fkyaml::node::serialize(root);
 
@@ -947,8 +834,10 @@ remove: qcm remove <package-alias> - uninstalls a package
 setup: qcm setup - sets up qcm
     )" << '\n';
 }
-const std::vector<Command> package_commands = {{"help", packageHelp}, {"upgrade", upgrade}, {"run", run}, {"sync", syncScope}, {"init", init}, {"add", add}, {"remove", removePackage}, {"setup", setup}};
-const std::vector<Command> tooling_commands = {{"help", help}, {"use", use}, {"install", install}, {"uninstall", uninstall}, {"list", list}, {"list-remote", listRemote}};
+const std::vector<Command> package_commands = {{"help", packageHelp}, {"upgrade", upgrade},      {"run", run},    {"sync", syncScope}, {"init", init},
+                                               {"add", add},          {"remove", removePackage}, {"setup", setup}};
+const std::vector<Command> tooling_commands = {{"help", help},           {"use", use},   {"install", install},
+                                               {"uninstall", uninstall}, {"list", list}, {"list-remote", listRemote}};
 int main(int argc, char** argv) {
     if (argc < 2) {
         std::cout << "Please pass an argument. Try `qcm tooling help` or `qcm help`";
@@ -975,17 +864,11 @@ int main(int argc, char** argv) {
             }
             std::cout << "Command doesn't exist. Please try `qcm help`";
             return 1;
-        } catch (std::string err) {
+        } catch (std::string err) { std::cout << "Error: " << err << '\n'; } catch (char* err) {
             std::cout << "Error: " << err << '\n';
-        } catch (char* err) {
-            std::cout << "Error: " << err << '\n';
-        } catch (const char* err) {
-            std::cout << "Error: " << err << '\n';
-        } catch (const std::exception& e) {
+        } catch (const char* err) { std::cout << "Error: " << err << '\n'; } catch (const std::exception& e) {
             std::cout << "Error: " << e.what() << '\n';
-        } catch (...) {
-            std::cout << "Unknown Error" << '\n';
-        }
+        } catch (...) { std::cout << "Unknown Error" << '\n'; }
         return 1;
     }
 }
