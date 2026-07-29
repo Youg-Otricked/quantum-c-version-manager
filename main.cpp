@@ -19,7 +19,7 @@
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
 #endif
-const std::string QCVM_VERSION = "2.2.1";
+const std::string QCVM_VERSION = "2.2.11";
 #include <unordered_set>
 std::unordered_set<std::string> load_tagged_versions() {
     std::unordered_set<std::string> versions;
@@ -671,15 +671,20 @@ bool operator>=(const Version& a, const Version& b) {
 }
 void addAliasToCommands(fkyaml::node& root, const std::string& name) {
     if (!root.contains("commands")) return;
-    if (!root.contains("aliases")) root["aliases"] = fkyaml::node::deserialize("{}");
+    if (!root.contains("aliases")) { root["aliases"] = fkyaml::node::deserialize("{}"); }
     root["aliases"][name] = "dependencies/" + name;
     auto& commands = root["commands"];
     for (auto& [cmd_name, cmd_node] : commands.as_map()) {
+        if (cmd_node.is_null()) continue;
         std::string cmd = cmd_node.get_value<std::string>();
-        if (cmd.find("-add " + name + " ") == std::string::npos) {
-            cmd += " -add " + name + " dependencies/" + name;
-            cmd_node = cmd;
+        std::string flag = " -ad " + name + " dependencies/" + name;
+        if (cmd.find(flag) != std::string::npos) continue;
+        size_t qc_pos = cmd.find("qc ");
+        if (qc_pos != std::string::npos) {
+            size_t insert_pos = qc_pos + 3;
+            cmd.insert(insert_pos, flag);
         }
+        cmd_node = cmd;
     }
 }
 void add(char** args, int argc) {
