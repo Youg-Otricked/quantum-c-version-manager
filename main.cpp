@@ -19,7 +19,7 @@
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
 #endif
-const std::string QCVM_VERSION = "2.2.22";
+const std::string QCVM_VERSION = "2.3.0";
 #include <unordered_set>
 std::unordered_set<std::string> load_tagged_versions() {
     std::unordered_set<std::string> versions;
@@ -278,6 +278,7 @@ void init(char** args, int argc) {
           << "\ndependencies: {}\n"
           << "\ncommands:\n"
           << "  test: " << testCmd << "\n"
+          << "  run: 'qc main.qc -o " << scopeName << " && ./" << scopeName << "'\n"
           << "  build: 'qc main.qc -o " << scopeName << "'\n";
     scope.close();
     std::cout << "code options:\n\n";
@@ -676,7 +677,7 @@ void addAliasToCommands(fkyaml::node& root, const std::string& name) {
     for (auto& [cmd_name, cmd_node] : commands.as_map()) {
         if (cmd_node.is_null()) continue;
         std::string cmd = cmd_node.get_value<std::string>();
-        std::string flag = " -ad " + name + " dependencies/" + name + " ";
+        std::string flag = "-ad " + name + " dependencies/" + name + " ";
         if (cmd.find(flag) != std::string::npos) continue;
         size_t qc_pos = cmd.find("qc ");
         if (qc_pos != std::string::npos) {
@@ -752,11 +753,16 @@ void removeAliasFromCommands(fkyaml::node& root, const std::string& name) {
         std::string cmd = cmd_node.get_value<std::string>();
         size_t pos = cmd.find(alias);
         if (pos != std::string::npos) {
-            cmd.erase(pos, alias.size());
-            while (!cmd.empty() && cmd.back() == ' ') {
-                cmd.pop_back();
+            size_t erase_start = pos;
+            if (erase_start > 0 && cmd[erase_start - 1] == ' ') {
+                erase_start--;
+            }
+            cmd.erase(erase_start, alias.size() + (erase_start != pos ? 1 : 0));
+            while (cmd.find("  ") != std::string::npos) {
+                cmd.replace(cmd.find("  "), 2, " ");
             }
         }
+
         cmd_node = cmd;
     }
 }
