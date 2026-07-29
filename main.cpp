@@ -19,7 +19,7 @@
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
 #endif
-const std::string QCVM_VERSION = "2.2.11";
+const std::string QCVM_VERSION = "2.3.0";
 #include <unordered_set>
 std::unordered_set<std::string> load_tagged_versions() {
     std::unordered_set<std::string> versions;
@@ -742,14 +742,22 @@ void add(char** args, int argc) {
     std::cout << "Added dependency '" << name << "' -> " << source << '\n';
 }
 void removeAliasFromCommands(fkyaml::node& root, const std::string& name) {
-    if (root.contains("aliases")) { root["aliases"].as_map().erase(name); }
+    if (root.contains("aliases")) {
+        root["aliases"].as_map().erase(name);
+    }
     if (!root.contains("commands")) return;
     auto& commands = root["commands"];
     std::string alias = "-ad " + name + " dependencies/" + name;
     for (auto& [cmd_name, cmd_node] : commands.as_map()) {
+        if (cmd_node.is_null()) continue;
         std::string cmd = cmd_node.get_value<std::string>();
         size_t pos = cmd.find(alias);
-        if (pos != std::string::npos) { cmd.erase(pos, alias.size()); }
+        if (pos != std::string::npos) {
+            cmd.erase(pos, alias.size());
+            while (!cmd.empty() && cmd.back() == ' ') {
+                cmd.pop_back();
+            }
+        }
         cmd_node = cmd;
     }
 }
