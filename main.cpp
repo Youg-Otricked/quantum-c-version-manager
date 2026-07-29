@@ -19,7 +19,7 @@
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
 #endif
-const std::string QCVM_VERSION = "2.2.21";
+const std::string QCVM_VERSION = "2.2.22";
 #include <unordered_set>
 std::unordered_set<std::string> load_tagged_versions() {
     std::unordered_set<std::string> versions;
@@ -278,8 +278,7 @@ void init(char** args, int argc) {
           << "\ndependencies: {}\n"
           << "\ncommands:\n"
           << "  test: " << testCmd << "\n"
-          << "  run: \"qc main.qc -o " << scopeName << " && ./" << scopeName << "\"\n"
-          << "  build: \"qc main.qc -o " << scopeName << "\"\n";
+          << "  build: 'qc main.qc -o " << scopeName << "'\n";
     scope.close();
     std::cout << "code options:\n\n";
     std::cout << "would you like the compiler to automatically print "
@@ -677,7 +676,7 @@ void addAliasToCommands(fkyaml::node& root, const std::string& name) {
     for (auto& [cmd_name, cmd_node] : commands.as_map()) {
         if (cmd_node.is_null()) continue;
         std::string cmd = cmd_node.get_value<std::string>();
-        std::string flag = " -ad " + name + " dependencies/ " + name;
+        std::string flag = " -ad " + name + " dependencies/" + name + " ";
         if (cmd.find(flag) != std::string::npos) continue;
         size_t qc_pos = cmd.find("qc ");
         if (qc_pos != std::string::npos) {
