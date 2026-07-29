@@ -19,7 +19,7 @@
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
 #endif
-const std::string QCVM_VERSION = "2.2.0";
+const std::string QCVM_VERSION = "2.2.1";
 #include <unordered_set>
 std::unordered_set<std::string> load_tagged_versions() {
     std::unordered_set<std::string> versions;
@@ -683,105 +683,52 @@ void addAliasToCommands(fkyaml::node& root, const std::string& name) {
     }
 }
 void add(char** args, int argc) {
-    if (argc < 3) {
-        throw "Usage: qcm add <package-name> [git <rawusercontent url to a project "
-              "that has a scope.yaml> <git .tar.gz tarball url>]";
-    }
+    if (argc < 3) { throw "Usage: qcm add <package-name> [git <git .tar.gz tarball url>]"; }
     std::string name = args[2];
     std::string source;
-    std::string type;
-    std::string git_repo;
-    if (argc >= 6) {
-        type = args[3];
+    if (argc >= 5) {
         source = args[4];
-        git_repo = args[5];
     } else {
-        type = "registry";
-
-        if (!REGISTRY.contains(name)) { throw "The registry does not contain package " + name + std::string("\n"); }
+        if (!REGISTRY.contains(name)) { throw "The registry does not contain package " + name + "\n"; }
         source = REGISTRY[name].repo;
     }
-
     if (!std::filesystem::exists("scope.yaml")) { throw "No scope.yaml found in current directory"; }
     std::ifstream in("scope.yaml");
     auto root = fkyaml::node::deserialize(in);
     in.close();
     if (!root.contains("dependencies")) { root["dependencies"] = fkyaml::node::deserialize("{}"); }
-
-    auto& deps = root["dependencies"];
-    deps[name] = source;
+    root["dependencies"][name] = source;
     if (ParseVersion(getCurrentQCVersion()) >= ParseVersion("x0.24.01")) { addAliasToCommands(root, name); }
-    std::string url = source;
-    size_t proto = url.find("://");
-    size_t host_start = (proto == std::string::npos) ? 0 : proto + 3;
-    size_t path_start = url.find('/', host_start);
-    if (path_start == std::string::npos) { throw "Invalid URL"; }
-    std::string host = url.substr(0, path_start);
-    std::string path = url.substr(path_start);
-    httplib::Client client(host);
-    auto res = client.Get((path + "/scope.yaml").c_str());
-    if (!res) { throw "Failed to get scope.yaml. Are you connected to Wi-Fi?"; }
-    if (res->status != 200) { throw "HTTP error: " + std::to_string(res->status); }
-    url = git_repo;
-    std::string scopeText = res->body;
-    auto node = fkyaml::node::deserialize(scopeText);
-    for (auto [dependancy_name, dependancy_url] : node["dependencies"].as_map()) {
-        std::string name = dependancy_name.get_value<std::string>();
-        std::string gz = dependancy_url.get_value<std::string>();
-        char* add_args[] = {args[0], (char*)"add", name.data(), (char*)"git", gz.data()};
-        add(add_args, 5);
-    }
     const char* home_raw = getenv("HOME");
-    if (!home_raw) throw "HOME not set\n";
+    if (!home_raw) { throw "HOME not set\n"; }
     std::string home(home_raw);
-    if (!std::filesystem::exists(home + "/.qcm/packages/" + name)) {
-        std::filesystem::create_directories(home + "/.qcm/packages/" + name);
-        std::string cmd = "curl -sL " + url + " | tar -tzf -";
-        FILE* pipe = popen(cmd.c_str(), "r");
-        std::vector<std::string> files;
-        char buffer[512];
-        while (fgets(buffer, sizeof(buffer), pipe)) {
-            std::string line(buffer);
-            line.erase(std::remove(line.begin(), line.end(), '\n'), line.end());
-            size_t first_slash = line.find('/');
-            if (first_slash != std::string::npos) {
-                std::string clean_name = line.substr(first_slash + 1);
-                if (!clean_name.empty()) { files.push_back(clean_name); }
+    std::string package_dir = home + "/.qcm/packages/" + name;
+    if (!std::filesystem::exists(package_dir)) {
+        std::filesystem::create_directories(package_dir);
+        std::string cmd = "curl -sL \"" + source + "\" | tar -xz --strip-components=1 -C \"" + package_dir + "\"";
+        int result = std::system(cmd.c_str());
+        if (result != 0) { throw "Failed to download or extract package\n"; }
+        std::cout << "Package installation complete!\n";
+    } else {
+        std::cout << "Package already cached!\n";
+    }
+    std::string package_scope = package_dir + "/scope.yaml";
+    if (std::filesystem::exists(package_scope)) {
+        std::ifstream pkg_in(package_scope);
+        auto node = fkyaml::node::deserialize(pkg_in);
+        if (node.contains("dependencies")) {
+            for (auto [dependency_name, dependency_url] : node["dependencies"].as_map()) {
+                std::string dep_name = dependency_name.get_value<std::string>();
+                std::string dep_url = dependency_url.get_value<std::string>();
+                char* add_args[] = {args[0], (char*)"add", dep_name.data(), (char*)"git", dep_url.data()};
+                add(add_args, 5);
             }
         }
-        pclose(pipe);
-        for (const std::string& file_name : files) {
-            if (!file_name.ends_with(".qc") && !file_name.ends_with(".md")) continue;
-            std::filesystem::path full_dest_path = home + "/.qcm/packages/" + name + "/" + file_name;
-            if (full_dest_path.has_parent_path()) { std::filesystem::create_directories(full_dest_path.parent_path()); }
-            size_t total = 0;
-            size_t downloaded = 0;
-            std::ofstream qcfile(full_dest_path, std::ios::binary);
-            if (!qcfile.is_open()) continue;
-            auto res = client.Get(
-                path + std::string("/") + file_name,
-                [&](const httplib::Response& response) {
-                    total = std::stoull(response.get_header_value("Content-Length", "0"));
-                    return true;
-                },
-                [&](const char* data, size_t len) {
-                    qcfile.write(data, len);
-                    downloaded += len;
-                    int pct = total ? (downloaded * 100 / total) : 0;
-                    int bars = pct / 5;
-                    std::cout << "\rInstalling file " << file_name << " - [" << std::string(bars, '=') << std::string(20 - bars, ' ') << "] " << pct
-                              << "%" << std::flush;
-                    return true;
-                });
-        }
-        std::cout << "\nPackage installation complete!\n";
-    } else {
-        std::cout << "Package already cached!" << '\n';
     }
-    std::string src = home + "/.qcm/packages/" + name;
+    std::string src = package_dir;
     std::string dst = "dependencies/" + name;
     if (std::filesystem::exists(dst) || std::filesystem::is_symlink(dst)) {
-        std::cout << "Dependency of same name already exists. Deleting." << '\n';
+        std::cout << "Dependency of same name already exists. Deleting.\n";
         std::filesystem::remove_all(dst);
     }
     std::filesystem::create_directory_symlink(src, dst);
@@ -829,7 +776,7 @@ help: qcm help - prints help text for package manager
 upgrade: qcm upgrade - installs latest version of qcm
 sync: qcm sync - installs neccesary packages and matches qc version
 init: qcm init - initializes a project
-add: qcm add <package-alias> [git <url to a git repo (of any hoster) containing a scope.yaml>]
+add: qcm add <package-alias> [git <url to a .tar.gz containing a scope.yaml>]
 remove: qcm remove <package-alias> - uninstalls a package
 setup: qcm setup - sets up qcm
     )" << '\n';
