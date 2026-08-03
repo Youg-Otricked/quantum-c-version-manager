@@ -1,1 +1,1 @@
-qsuite@|x0.24.322|https://github.com/Youg-Otricked/qsuite/archive/refs/heads/main.tar.gz|Initial Commit
+qsuite@|x0.24.324|https://github.com/Youg-Otricked/qsuite/archive/refs/heads/main.tar.gz|Initial Commit
